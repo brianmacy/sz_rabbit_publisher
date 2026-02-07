@@ -1,5 +1,5 @@
 use anyhow::Result;
-use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
+use lapin::{Connection, ConnectionProperties, options::*, types::FieldTable};
 use std::io::Write;
 use std::time::Duration;
 use sz_rabbit_publisher::{PublisherConfig, RabbitMQPublisher};

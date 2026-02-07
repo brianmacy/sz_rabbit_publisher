@@ -101,7 +101,7 @@ jobs:
 
       - name: Wait for RabbitMQ
         run: |
-          until curl -f http://localhost:15672/api/overview; do
+          until curl -f -u guest:guest http://localhost:15672/api/overview; do
             echo "Waiting for RabbitMQ..."
             sleep 5
           done

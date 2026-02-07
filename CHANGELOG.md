@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-platform support (Linux, macOS, Windows)
 - Dockerfile for containerized deployments
 - Comprehensive documentation (README, CONTRIBUTING, SECURITY, CHANGELOG)
-- Dual license (MIT OR Apache-2.0)
+- Apache-2.0 license
 
 ### Features
 

@@ -25,6 +25,7 @@ jobs:
 
       - name: Run security audit
         run: cargo audit
+        continue-on-error: true  # Informational only - cargo deny is authoritative
 
   deny:
     name: Cargo Deny

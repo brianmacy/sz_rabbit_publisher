@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use lapin::{options::*, BasicProperties, Channel, Connection, ConnectionProperties};
+use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, options::*};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
