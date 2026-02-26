@@ -23,80 +23,73 @@ pub async fn is_gzip_file<P: AsRef<Path>>(path: P) -> Result<bool> {
     Ok(bytes_read == 2 && magic == GZIP_MAGIC)
 }
 
-/// Reads lines from a file, automatically handling gzip compression
+/// Active reader variant — plain text or gzip-compressed
+enum LineReader {
+    Plain(BufReader<std::fs::File>),
+    Gzip(BufReader<GzDecoder<std::fs::File>>),
+}
+
+/// Streams lines lazily from a file, automatically handling gzip compression
 pub struct FileReader {
-    lines: Vec<String>,
-    current_index: usize,
+    reader: LineReader,
+    lines_read: u64,
 }
 
 impl FileReader {
-    /// Opens a file and reads all lines into memory
-    /// Automatically detects and handles gzip compression
+    /// Opens a file for lazy line-by-line reading.
+    /// Automatically detects and handles gzip compression.
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         let is_gzip = is_gzip_file(path).await?;
 
-        let lines = if is_gzip {
-            Self::read_gzip_lines(path)?
+        let reader = if is_gzip {
+            let file = std::fs::File::open(path).context("Failed to open gzip file")?;
+            let decoder = GzDecoder::new(file);
+            LineReader::Gzip(BufReader::new(decoder))
         } else {
-            Self::read_plain_lines(path).await?
+            let file = std::fs::File::open(path).context("Failed to open plain text file")?;
+            LineReader::Plain(BufReader::new(file))
         };
 
         Ok(Self {
-            lines,
-            current_index: 0,
+            reader,
+            lines_read: 0,
         })
     }
 
-    /// Reads lines from a plain text file
-    async fn read_plain_lines<P: AsRef<Path>>(path: P) -> Result<Vec<String>> {
-        let content = tokio::fs::read_to_string(path.as_ref())
-            .await
-            .context("Failed to read plain text file")?;
+    /// Returns the next non-empty line from the file, or `None` at EOF.
+    /// I/O errors are propagated via `Result`.
+    pub fn next_line(&mut self) -> Option<Result<String>> {
+        let mut buf = String::new();
+        loop {
+            buf.clear();
+            let bytes = match &mut self.reader {
+                LineReader::Plain(r) => r.read_line(&mut buf),
+                LineReader::Gzip(r) => r.read_line(&mut buf),
+            };
 
-        Ok(content
-            .lines()
-            .filter(|line| !line.is_empty())
-            .map(|s| s.to_string())
-            .collect())
-    }
-
-    /// Reads lines from a gzip-compressed file
-    fn read_gzip_lines<P: AsRef<Path>>(path: P) -> Result<Vec<String>> {
-        let file = std::fs::File::open(path.as_ref()).context("Failed to open gzip file")?;
-        let decoder = GzDecoder::new(file);
-        let reader = BufReader::new(decoder);
-
-        let mut lines = Vec::new();
-        for line in reader.lines() {
-            let line = line.context("Failed to read line from gzip file")?;
-            if !line.is_empty() {
-                lines.push(line);
+            match bytes {
+                Ok(0) => return None, // EOF
+                Ok(_) => {
+                    let trimmed = buf.trim_end_matches('\n').trim_end_matches('\r');
+                    if trimmed.is_empty() {
+                        continue; // skip empty lines
+                    }
+                    self.lines_read += 1;
+                    return Some(Ok(trimmed.to_string()));
+                }
+                Err(e) => {
+                    return Some(Err(
+                        anyhow::Error::new(e).context("Failed to read line from file")
+                    ));
+                }
             }
         }
-
-        Ok(lines)
     }
 
-    /// Returns the next line from the file, or None if EOF
-    pub fn next_line(&mut self) -> Option<String> {
-        if self.current_index < self.lines.len() {
-            let line = self.lines[self.current_index].clone();
-            self.current_index += 1;
-            Some(line)
-        } else {
-            None
-        }
-    }
-
-    /// Returns the total number of lines in the file
-    pub fn total_lines(&self) -> usize {
-        self.lines.len()
-    }
-
-    /// Returns the number of lines remaining to read
-    pub fn remaining_lines(&self) -> usize {
-        self.lines.len().saturating_sub(self.current_index)
+    /// Returns the number of lines read so far
+    pub fn lines_read(&self) -> u64 {
+        self.lines_read
     }
 }
 
@@ -116,11 +109,11 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
 
-        assert_eq!(reader.total_lines(), 3);
-        assert_eq!(reader.next_line(), Some("line1".to_string()));
-        assert_eq!(reader.next_line(), Some("line2".to_string()));
-        assert_eq!(reader.next_line(), Some("line3".to_string()));
-        assert_eq!(reader.next_line(), None);
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 3);
     }
 
     #[tokio::test]
@@ -133,10 +126,10 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
 
-        assert_eq!(reader.total_lines(), 2);
-        assert_eq!(reader.next_line(), Some("line1".to_string()));
-        assert_eq!(reader.next_line(), Some("line2".to_string()));
-        assert_eq!(reader.next_line(), None);
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line2");
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 2);
     }
 
     #[tokio::test]
@@ -159,11 +152,11 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
 
-        assert_eq!(reader.total_lines(), 3);
-        assert_eq!(reader.next_line(), Some("line1".to_string()));
-        assert_eq!(reader.next_line(), Some("line2".to_string()));
-        assert_eq!(reader.next_line(), Some("line3".to_string()));
-        assert_eq!(reader.next_line(), None);
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 3);
     }
 
     #[tokio::test]
@@ -189,7 +182,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_remaining_lines() {
+    async fn test_lines_read_increments() {
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "line1").unwrap();
         writeln!(temp_file, "line2").unwrap();
@@ -198,13 +191,13 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
 
-        assert_eq!(reader.remaining_lines(), 3);
+        assert_eq!(reader.lines_read(), 0);
         reader.next_line();
-        assert_eq!(reader.remaining_lines(), 2);
+        assert_eq!(reader.lines_read(), 1);
         reader.next_line();
-        assert_eq!(reader.remaining_lines(), 1);
+        assert_eq!(reader.lines_read(), 2);
         reader.next_line();
-        assert_eq!(reader.remaining_lines(), 0);
+        assert_eq!(reader.lines_read(), 3);
     }
 
     #[tokio::test]

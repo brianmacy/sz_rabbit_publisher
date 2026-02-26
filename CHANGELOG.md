@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced sequential per-message publisher confirms with pipelined batch confirms
+  - Each `PublisherConfirm` is awaited individually to verify actual broker ack/nack
+  - Nacked messages (reject-publish) are retried forever with configurable delay
+  - Eliminates one broker RTT (~5ms) per message, targeting ~18k msg/s (up from ~170 msg/s)
+- Added automatic reconnection: connection drops (e.g., PostgreSQL reboot) trigger
+  infinite retry with no message loss — unconfirmed messages are re-published after reconnect
+- Progress reporting now fires on acked milestones so displayed rate reflects confirmed delivery
+- Removed `publish_with_retry` method (replaced by batch pipeline with reconnection)
+
 ### Planned
+
 - Upgrade dependencies when upstream fixes security advisories (see SECURITY.md)
 
 ## [0.1.0] - 2025-02-07

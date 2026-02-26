@@ -86,11 +86,6 @@ impl StatsTracker {
     pub fn increment_total(&self) {
         let mut stats = self.stats.lock().unwrap();
         stats.total_records += 1;
-
-        // Report progress at intervals
-        if stats.total_records % self.report_interval == 0 {
-            tracing::info!("{}", stats.progress_report());
-        }
     }
 
     pub fn increment_acked(&self) {
@@ -98,6 +93,11 @@ impl StatsTracker {
         stats.acked += 1;
         if stats.pending > 0 {
             stats.pending -= 1;
+        }
+
+        // Report progress at acked intervals so rate reflects confirmed delivery
+        if stats.acked.is_multiple_of(self.report_interval) {
+            tracing::info!("{}", stats.progress_report());
         }
     }
 

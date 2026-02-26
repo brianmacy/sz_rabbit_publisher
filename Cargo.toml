@@ -2,7 +2,7 @@
 name = "sz_rabbit_publisher"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 authors = ["Brian Macy"]
 description = "High-performance RabbitMQ publisher for JSONL files"
 license = "Apache-2.0"

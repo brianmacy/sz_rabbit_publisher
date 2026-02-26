@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
-use lapin::{BasicProperties, Channel, Connection, ConnectionProperties, options::*};
+use lapin::{
+    BasicProperties, Channel, Connection, ConnectionProperties, options::*,
+    publisher_confirm::PublisherConfirm,
+};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -39,25 +42,9 @@ impl RabbitMQPublisher {
             .await
             .context("Failed to open input file")?;
 
-        tracing::info!("Total lines to publish: {}", reader.total_lines());
-
-        // Connect to RabbitMQ
+        // Connect to RabbitMQ (retries forever until connected)
         tracing::info!("Connecting to RabbitMQ at {}", self.config.amqp_url);
-        let connection =
-            Connection::connect(&self.config.amqp_url, ConnectionProperties::default())
-                .await
-                .context("Failed to connect to RabbitMQ")?;
-
-        let channel = connection
-            .create_channel()
-            .await
-            .context("Failed to create channel")?;
-
-        // Enable publisher confirms
-        channel
-            .confirm_select(ConfirmSelectOptions::default())
-            .await
-            .context("Failed to enable publisher confirms")?;
+        let (mut connection, mut channel) = self.connect_with_confirms().await;
 
         tracing::info!(
             "Publishing to exchange: {}, queue: {}, routing_key: {}",
@@ -66,14 +53,23 @@ impl RabbitMQPublisher {
             self.config.routing_key
         );
 
-        // Set up bounded channel for back pressure
-        let (tx, mut rx) = mpsc::channel::<String>(self.config.max_pending);
+        // Buffer 2x the batch size so the reader can keep filling while confirms drain
+        let (tx, mut rx) = mpsc::channel::<String>(self.config.max_pending * 2);
 
         // Spawn file reader task
         let reader_handle = {
             let stats = self.stats.clone();
             tokio::spawn(async move {
-                while let Some(line) = reader.next_line() {
+                loop {
+                    let line = match reader.next_line() {
+                        Some(Ok(line)) => line,
+                        Some(Err(e)) => {
+                            tracing::error!("Error reading line: {:#}", e);
+                            break;
+                        }
+                        None => break, // EOF
+                    };
+
                     stats.increment_total();
 
                     // Try non-blocking send first to detect back pressure
@@ -94,70 +90,149 @@ impl RabbitMQPublisher {
                         }
                     }
                 }
+                tracing::info!("File reading complete: {} lines read", reader.lines_read());
             })
         };
 
-        // Publish messages as they become available
-        while let Some(message) = rx.recv().await {
-            self.publish_with_retry(&channel, &message).await?;
+        // Pipeline publishes: fire up to max_pending, collect confirms, then
+        // await each confirm to verify actual ack/nack from the broker.
+        // Nacked messages (reject-publish) are retried forever.
+        // Connection drops trigger reconnection — no messages are lost.
+        let mut pending: Vec<(String, PublisherConfirm)> =
+            Vec::with_capacity(self.config.max_pending);
+        let mut unsent: Vec<String> = Vec::new();
+        let mut eof = false;
+
+        while !eof || !unsent.is_empty() || !pending.is_empty() {
+            // Fill batch: unsent (nacked/unconfirmed) messages first, then new from reader
+            while pending.len() < self.config.max_pending {
+                let message = if let Some(msg) = unsent.pop() {
+                    msg
+                } else if eof {
+                    break;
+                } else {
+                    match rx.recv().await {
+                        Some(msg) => msg,
+                        None => {
+                            eof = true;
+                            break;
+                        }
+                    }
+                };
+
+                match channel
+                    .basic_publish(
+                        &self.config.exchange,
+                        &self.config.routing_key,
+                        BasicPublishOptions::default(),
+                        message.as_bytes(),
+                        BasicProperties::default().with_delivery_mode(2),
+                    )
+                    .await
+                {
+                    Ok(confirm) => {
+                        self.stats.increment_pending();
+                        pending.push((message, confirm));
+                    }
+                    Err(e) => {
+                        tracing::warn!("Publish failed: {:#}, reconnecting...", e);
+                        unsent.push(message);
+                        for (msg, _) in pending.drain(..) {
+                            unsent.push(msg);
+                        }
+                        (connection, channel) = self.reconnect(&connection).await;
+                        break;
+                    }
+                }
+            }
+
+            // Drain confirms — check each for actual ack/nack
+            let mut conn_failed = false;
+            for (message, confirm) in pending.drain(..) {
+                match confirm.await {
+                    Ok(confirmation) => {
+                        if confirmation.is_ack() {
+                            self.stats.increment_acked();
+                        } else {
+                            self.stats.increment_nacked();
+                            unsent.push(message);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Confirm failed: {:#}, reconnecting...", e);
+                        unsent.push(message);
+                        conn_failed = true;
+                        break;
+                    }
+                }
+            }
+
+            if conn_failed {
+                // Remaining pending items can't be confirmed — re-publish after reconnect
+                for (msg, _) in pending.drain(..) {
+                    unsent.push(msg);
+                }
+                (connection, channel) = self.reconnect(&connection).await;
+            }
+
+            // Back off before retrying nacked messages (not after reconnect — that already waited)
+            if !unsent.is_empty() && !conn_failed {
+                sleep(self.config.retry_delay).await;
+            }
         }
 
         // Wait for reader to complete
         reader_handle.await.context("File reader task failed")?;
 
         // Close connection gracefully
-        connection
-            .close(0, "Publishing complete")
-            .await
-            .context("Failed to close connection")?;
+        if let Err(e) = connection.close(0, "Publishing complete").await {
+            tracing::warn!("Failed to close connection gracefully: {:#}", e);
+        }
 
         self.stats.print_final_summary();
 
         Ok(self.stats.get_snapshot())
     }
 
-    /// Publishes a single message with retry on nack
-    async fn publish_with_retry(&self, channel: &Channel, message: &str) -> Result<()> {
-        let mut retry_count = 0;
-        const MAX_RETRIES: u32 = 3;
-
+    /// Connect to RabbitMQ with publisher confirms enabled, retrying forever.
+    async fn connect_with_confirms(&self) -> (Connection, Channel) {
         loop {
-            self.stats.increment_pending();
-
-            let confirmation = channel
-                .basic_publish(
-                    &self.config.exchange,
-                    &self.config.routing_key,
-                    BasicPublishOptions::default(),
-                    message.as_bytes(),
-                    BasicProperties::default().with_delivery_mode(2), // Persistent
-                )
-                .await
-                .context("Failed to publish message")?
-                .await
-                .context("Failed to get confirmation")?;
-
-            if confirmation.is_ack() {
-                self.stats.increment_acked();
-                return Ok(());
-            } else if confirmation.is_nack() {
-                self.stats.increment_nacked();
-                retry_count += 1;
-
-                if retry_count >= MAX_RETRIES {
-                    anyhow::bail!("Message nacked after {} retries", MAX_RETRIES);
+            match self.try_connect().await {
+                Ok(result) => return result,
+                Err(e) => {
+                    tracing::warn!(
+                        "RabbitMQ connection failed: {:#}, retrying in {:?}...",
+                        e,
+                        self.config.retry_delay
+                    );
+                    sleep(self.config.retry_delay).await;
                 }
-
-                tracing::warn!(
-                    "Message nacked (attempt {}/{}), will retry after {:?}",
-                    retry_count,
-                    MAX_RETRIES,
-                    self.config.retry_delay
-                );
-
-                sleep(self.config.retry_delay).await;
             }
         }
+    }
+
+    /// Single connection attempt: connect, create channel, enable confirms.
+    async fn try_connect(&self) -> Result<(Connection, Channel)> {
+        let conn = Connection::connect(&self.config.amqp_url, ConnectionProperties::default())
+            .await
+            .context("Failed to connect to RabbitMQ")?;
+        let ch = conn
+            .create_channel()
+            .await
+            .context("Failed to create channel")?;
+        ch.confirm_select(ConfirmSelectOptions::default())
+            .await
+            .context("Failed to enable publisher confirms")?;
+        Ok((conn, ch))
+    }
+
+    /// Close old connection (best-effort) and reconnect, retrying forever.
+    async fn reconnect(&self, old_conn: &Connection) -> (Connection, Channel) {
+        if let Err(e) = old_conn.close(0, "reconnecting").await {
+            tracing::debug!("Old connection close during reconnect: {:#}", e);
+        }
+        tracing::info!("Reconnecting to RabbitMQ...");
+        self.connect_with_confirms().await
     }
 }
 

@@ -88,6 +88,7 @@ When using Docker:
 The following advisories exist in transitive dependencies and are tracked for resolution:
 
 **RUSTSEC-2025-0134: rustls-pemfile unmaintained**
+
 - **Path:** lapin → amq-protocol-tcp → tcp-stream → rustls-pemfile
 - **Severity:** Maintenance (non-critical)
 - **Impact:** Low - library is unmaintained but functional
@@ -95,6 +96,7 @@ The following advisories exist in transitive dependencies and are tracked for re
 - **Status:** Monitoring upstream for fixes
 
 **RUSTSEC-2026-0009: time crate RFC 2822 DoS**
+
 - **Path:** lapin → amq-protocol-tcp → tcp-stream → p12-keystore → x509-parser → time 0.3.45
 - **Severity:** Medium (6.8)
 - **Impact:** DoS via stack exhaustion with malicious RFC 2822 input
@@ -102,6 +104,7 @@ The following advisories exist in transitive dependencies and are tracked for re
 - **Status:** Requires time >= 0.3.47; waiting for upstream x509-parser/p12-keystore updates
 
 **Action Plan:**
+
 - Monitor lapin, tcp-stream, and related crates for updates
 - Upgrade dependencies when fixes are available
 - Re-run `cargo audit` after each dependency update
