@@ -351,21 +351,20 @@ mod tests {
         assert!(stats.last_report_time.is_some());
 
         // Second report: interval covers only new acks since last report
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(200));
         stats.acked = 1500;
         let report2 = stats.progress_report();
         assert!(report2.contains("acked=1500"));
         assert_eq!(stats.last_report_acked, 1500);
 
-        // The interval rate in report2 should reflect 500 acks over ~50ms
-        // which is ~10000 msg/s, not 1500/total_elapsed (~750 msg/s cumulative)
-        // Extract rate from report string
+        // The interval rate in report2 should reflect 500 acks over ~200ms
+        // which is ~2500 msg/s, not 1500/total_elapsed (~750 msg/s cumulative).
+        // Use a conservative threshold to avoid flakiness on slow CI runners.
         let rate_str = report2.split("rate=").nth(1).unwrap();
         let rate: f64 = rate_str.trim_end_matches(" msg/s").parse().unwrap();
-        // Interval rate should be > 5000 (500 acks in ~50ms), not cumulative ~750
         assert!(
-            rate > 5000.0,
-            "Interval rate {:.2} should be > 5000 (not cumulative average)",
+            rate > 1500.0,
+            "Interval rate {:.2} should be > 1500 (not cumulative average)",
             rate
         );
     }
