@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-lapin = "3"
+lapin = "4"
 clap = { version = "4", features = ["derive", "env"] }
 flate2 = "1"
 anyhow = "1"
@@ -23,7 +23,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [dev-dependencies]
 tempfile = "3"
 flate2 = "1"
-lapin = "3"
+lapin = "4"
 
 [profile.release]
 opt-level = 3
