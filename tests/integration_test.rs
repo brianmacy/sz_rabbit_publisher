@@ -52,7 +52,7 @@ async fn setup_rabbitmq(
     // Declare exchange
     channel
         .exchange_declare(
-            exchange,
+            exchange.into(),
             lapin::ExchangeKind::Direct,
             ExchangeDeclareOptions {
                 durable: false,
@@ -66,7 +66,7 @@ async fn setup_rabbitmq(
     // Declare queue
     channel
         .queue_declare(
-            queue,
+            queue.into(),
             QueueDeclareOptions {
                 durable: false,
                 auto_delete: true,
@@ -79,15 +79,15 @@ async fn setup_rabbitmq(
     // Bind queue to exchange
     channel
         .queue_bind(
-            queue,
-            exchange,
-            routing_key,
+            queue.into(),
+            exchange.into(),
+            routing_key.into(),
             QueueBindOptions::default(),
             FieldTable::default(),
         )
         .await?;
 
-    connection.close(0, "Setup complete").await.ok();
+    connection.close(0, "Setup complete".into()).await.ok();
     Ok(())
 }
 

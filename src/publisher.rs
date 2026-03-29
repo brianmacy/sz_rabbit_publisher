@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use lapin::{
-    BasicProperties, Channel, Connection, ConnectionProperties, options::*,
-    publisher_confirm::PublisherConfirm,
+    BasicProperties, Channel, Connection, ConnectionProperties, PublisherConfirm, options::*,
+    types::ShortString,
 };
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -125,8 +125,8 @@ impl RabbitMQPublisher {
 
                 match channel
                     .basic_publish(
-                        &self.config.exchange,
-                        &self.config.routing_key,
+                        ShortString::from(self.config.exchange.as_str()),
+                        ShortString::from(self.config.routing_key.as_str()),
                         BasicPublishOptions::default(),
                         message.as_bytes(),
                         BasicProperties::default().with_delivery_mode(2),
@@ -188,7 +188,7 @@ impl RabbitMQPublisher {
         reader_handle.await.context("File reader task failed")?;
 
         // Close connection gracefully
-        if let Err(e) = connection.close(0, "Publishing complete").await {
+        if let Err(e) = connection.close(0, "Publishing complete".into()).await {
             tracing::warn!("Failed to close connection gracefully: {:#}", e);
         }
 
@@ -231,7 +231,7 @@ impl RabbitMQPublisher {
 
     /// Close old connection (best-effort) and reconnect, retrying forever.
     async fn reconnect(&self, old_conn: &Connection) -> (Connection, Channel) {
-        if let Err(e) = old_conn.close(0, "reconnecting").await {
+        if let Err(e) = old_conn.close(0, "reconnecting".into()).await {
             tracing::debug!("Old connection close during reconnect: {:#}", e);
         }
         tracing::info!("Reconnecting to RabbitMQ...");
