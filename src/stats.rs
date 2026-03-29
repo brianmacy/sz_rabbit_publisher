@@ -331,13 +331,14 @@ mod tests {
 
     #[test]
     fn test_interval_rate() {
+        let now = Instant::now();
         let mut stats = Stats {
             total_records: 0,
             acked: 0,
             nacked: 0,
             throttled: 0,
             pending: 0,
-            start_time: Some(Instant::now()),
+            start_time: Some(now),
             last_report_time: None,
             last_report_acked: 0,
         };
@@ -350,21 +351,34 @@ mod tests {
         assert_eq!(stats.last_report_acked, 1000);
         assert!(stats.last_report_time.is_some());
 
-        // Second report: interval covers only new acks since last report
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        // Second report: inject a last_report_time exactly 1 second in the past
+        // so the interval is deterministic and not dependent on sleep precision.
+        // Instant doesn't support subtraction by Duration to go backward, but we
+        // can use checked_sub (stable since 1.34). If unavailable, fall back to
+        // setting it to (now) and sleeping a tiny amount — but checked_sub works.
+        stats.last_report_time = Some(now.checked_sub(Duration::from_secs(1)).unwrap_or(now));
+        stats.last_report_acked = 1000;
         stats.acked = 1500;
         let report2 = stats.progress_report();
         assert!(report2.contains("acked=1500"));
         assert_eq!(stats.last_report_acked, 1500);
 
-        // The interval rate in report2 should reflect 500 acks over ~200ms
-        // which is ~2500 msg/s, not 1500/total_elapsed (~750 msg/s cumulative).
-        // Use a conservative threshold to avoid flakiness on slow CI runners.
+        // With 500 new acks over >= 1 second, interval rate should be ~500 msg/s.
+        // Use a conservative lower bound; the elapsed will be 1s + tiny epsilon,
+        // so rate will be just under 500. Threshold of 400 is very safe.
         let rate_str = report2.split("rate=").nth(1).unwrap();
         let rate: f64 = rate_str.trim_end_matches(" msg/s").parse().unwrap();
         assert!(
-            rate > 1500.0,
-            "Interval rate {:.2} should be > 1500 (not cumulative average)",
+            rate > 400.0,
+            "Interval rate {:.2} should be > 400 (500 acks / ~1s)",
+            rate
+        );
+        // Also verify it reflects interval, not cumulative average.
+        // Cumulative would be 1500 / (now.elapsed()), which could be anything,
+        // but interval rate must be bounded above by 500/1s = 500.
+        assert!(
+            rate < 600.0,
+            "Interval rate {:.2} should be < 600 (deterministic ~500 msg/s interval)",
             rate
         );
     }
