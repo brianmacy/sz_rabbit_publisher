@@ -10,6 +10,9 @@ pub struct Stats {
     pub throttled: u64,
     pub pending: u64,
     pub start_time: Option<Instant>,
+    /// Tracks the last progress report for interval rate calculation
+    last_report_time: Option<Instant>,
+    last_report_acked: u64,
 }
 
 impl Stats {
@@ -34,16 +37,49 @@ impl Stats {
         }
     }
 
-    pub fn progress_report(&self) -> String {
-        format!(
+    /// Rate since the last progress report (or since start for the first report)
+    fn interval_rate(&self) -> f64 {
+        let interval_elapsed = self
+            .last_report_time
+            .unwrap_or_else(|| self.start_time.unwrap_or_else(Instant::now))
+            .elapsed()
+            .as_secs_f64();
+        let interval_acked = self.acked.saturating_sub(self.last_report_acked);
+        if interval_elapsed > 0.0 {
+            interval_acked as f64 / interval_elapsed
+        } else {
+            0.0
+        }
+    }
+
+    pub fn progress_report(&mut self) -> String {
+        let rate = self.interval_rate();
+        let report = format!(
             "Progress: total={}, acked={}, nacked={}, pending={}, throttled={}, rate={:.2} msg/s",
-            self.total_records,
-            self.acked,
-            self.nacked,
-            self.pending,
-            self.throttled,
-            self.messages_per_second()
-        )
+            self.total_records, self.acked, self.nacked, self.pending, self.throttled, rate
+        );
+        self.last_report_time = Some(Instant::now());
+        self.last_report_acked = self.acked;
+        report
+    }
+
+    /// Combine two Stats snapshots (for multi-file overall summary).
+    /// Keeps the earliest start_time so elapsed covers the full wall-clock window.
+    pub fn merge(&self, other: &Stats) -> Stats {
+        Stats {
+            total_records: self.total_records + other.total_records,
+            acked: self.acked + other.acked,
+            nacked: self.nacked + other.nacked,
+            throttled: self.throttled + other.throttled,
+            pending: self.pending + other.pending,
+            start_time: match (self.start_time, other.start_time) {
+                (Some(a), Some(b)) => Some(if a < b { a } else { b }),
+                (a, None) => a,
+                (None, b) => b,
+            },
+            last_report_time: None,
+            last_report_acked: 0,
+        }
     }
 
     pub fn final_summary(&self) -> String {
@@ -73,6 +109,7 @@ impl Stats {
 pub struct StatsTracker {
     stats: Arc<Mutex<Stats>>,
     report_interval: u64,
+    label: Arc<Mutex<String>>,
 }
 
 impl StatsTracker {
@@ -80,6 +117,21 @@ impl StatsTracker {
         Self {
             stats: Arc::new(Mutex::new(Stats::new())),
             report_interval,
+            label: Arc::new(Mutex::new(String::new())),
+        }
+    }
+
+    /// Set a label (e.g. filename) that prefixes all progress and summary output
+    pub fn set_label(&self, label: &str) {
+        *self.label.lock().unwrap() = label.to_string();
+    }
+
+    fn format_label(&self) -> String {
+        let label = self.label.lock().unwrap();
+        if label.is_empty() {
+            String::new()
+        } else {
+            format!("[{}] ", label)
         }
     }
 
@@ -97,7 +149,7 @@ impl StatsTracker {
 
         // Report progress at acked intervals so rate reflects confirmed delivery
         if stats.acked.is_multiple_of(self.report_interval) {
-            tracing::info!("{}", stats.progress_report());
+            tracing::info!("{}{}", self.format_label(), stats.progress_report());
         }
     }
 
@@ -128,13 +180,14 @@ impl StatsTracker {
     }
 
     pub fn print_progress(&self) {
-        let stats = self.stats.lock().unwrap();
-        tracing::info!("{}", stats.progress_report());
+        let mut stats = self.stats.lock().unwrap();
+        tracing::info!("{}{}", self.format_label(), stats.progress_report());
     }
 
     pub fn print_final_summary(&self) {
+        let label = self.format_label();
         let stats = self.stats.lock().unwrap();
-        println!("\n{}", stats.final_summary());
+        println!("\n{}{}", label, stats.final_summary());
     }
 }
 
@@ -205,13 +258,15 @@ mod tests {
 
     #[test]
     fn test_progress_report_format() {
-        let stats = Stats {
+        let mut stats = Stats {
             total_records: 100,
             acked: 95,
             nacked: 5,
             pending: 10,
             throttled: 2,
             start_time: Some(Instant::now()),
+            last_report_time: None,
+            last_report_acked: 0,
         };
 
         let report = stats.progress_report();
@@ -231,6 +286,8 @@ mod tests {
             pending: 0,
             throttled: 5,
             start_time: Some(Instant::now()),
+            last_report_time: None,
+            last_report_acked: 0,
         };
 
         let summary = stats.final_summary();
@@ -238,5 +295,78 @@ mod tests {
         assert!(summary.contains("Acknowledged: 990"));
         assert!(summary.contains("Not acknowledged: 10"));
         assert!(summary.contains("Throttled: 5"));
+    }
+
+    #[test]
+    fn test_stats_merge() {
+        let a = Stats {
+            total_records: 100,
+            acked: 90,
+            nacked: 5,
+            throttled: 2,
+            pending: 0,
+            start_time: Some(Instant::now()),
+            last_report_time: None,
+            last_report_acked: 0,
+        };
+        let b = Stats {
+            total_records: 200,
+            acked: 190,
+            nacked: 8,
+            throttled: 1,
+            pending: 0,
+            start_time: Some(Instant::now()),
+            last_report_time: None,
+            last_report_acked: 0,
+        };
+        let combined = a.merge(&b);
+        assert_eq!(combined.total_records, 300);
+        assert_eq!(combined.acked, 280);
+        assert_eq!(combined.nacked, 13);
+        assert_eq!(combined.throttled, 3);
+        assert_eq!(combined.pending, 0);
+        // Keeps the earliest start_time (a's, since Instant is monotonic)
+        assert_eq!(combined.start_time, a.start_time);
+    }
+
+    #[test]
+    fn test_interval_rate() {
+        let mut stats = Stats {
+            total_records: 0,
+            acked: 0,
+            nacked: 0,
+            throttled: 0,
+            pending: 0,
+            start_time: Some(Instant::now()),
+            last_report_time: None,
+            last_report_acked: 0,
+        };
+
+        // First report: interval covers from start_time
+        stats.acked = 1000;
+        let report1 = stats.progress_report();
+        assert!(report1.contains("acked=1000"));
+        // After first report, last_report_acked should be updated
+        assert_eq!(stats.last_report_acked, 1000);
+        assert!(stats.last_report_time.is_some());
+
+        // Second report: interval covers only new acks since last report
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        stats.acked = 1500;
+        let report2 = stats.progress_report();
+        assert!(report2.contains("acked=1500"));
+        assert_eq!(stats.last_report_acked, 1500);
+
+        // The interval rate in report2 should reflect 500 acks over ~50ms
+        // which is ~10000 msg/s, not 1500/total_elapsed (~750 msg/s cumulative)
+        // Extract rate from report string
+        let rate_str = report2.split("rate=").nth(1).unwrap();
+        let rate: f64 = rate_str.trim_end_matches(" msg/s").parse().unwrap();
+        // Interval rate should be > 5000 (500 acks in ~50ms), not cumulative ~750
+        assert!(
+            rate > 5000.0,
+            "Interval rate {:.2} should be > 5000 (not cumulative average)",
+            rate
+        );
     }
 }

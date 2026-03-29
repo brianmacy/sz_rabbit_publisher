@@ -34,6 +34,11 @@ impl RabbitMQPublisher {
         Self { config, stats }
     }
 
+    /// Set a label (e.g. filename) that prefixes all progress and summary output
+    pub fn stats_label(&self, label: &str) {
+        self.stats.set_label(label);
+    }
+
     /// Publishes all lines from a file to RabbitMQ
     /// Returns statistics about the publishing operation
     pub async fn publish_file(&self, file_path: &str) -> Result<crate::stats::Stats> {
@@ -73,10 +78,8 @@ impl RabbitMQPublisher {
                     stats.increment_total();
 
                     // Try non-blocking send first to detect back pressure
-                    match tx.try_send(line.clone()) {
-                        Ok(_) => {
-                            // Sent without blocking
-                        }
+                    match tx.try_send(line) {
+                        Ok(_) => {}
                         Err(mpsc::error::TrySendError::Full(msg)) => {
                             // Channel is full - back pressure!
                             stats.increment_throttled();

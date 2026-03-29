@@ -4,13 +4,13 @@ High-performance RabbitMQ publisher written in Rust for publishing JSONL (JSON L
 
 ## Features
 
-- **High Performance**: Async I/O with tokio for maximum throughput
+- **High Performance**: Pipelined batch publisher confirms (~18k msg/s)
+- **Multi-File**: Process multiple JSONL files sequentially or in parallel
+- **Resilient**: Automatic reconnection on broker failure; nacked messages retried forever
 - **Back Pressure**: Bounded channel implementation prevents memory exhaustion
-- **Delivery Confirmations**: Publisher confirms with automatic retry on nack
 - **Gzip Support**: Automatically detects and decompresses gzip files
-- **Progress Reporting**: Configurable progress updates during publishing
+- **Progress Reporting**: Per-file interval rate with file labels in parallel mode
 - **CLI-First**: All configuration via command-line arguments or environment variables
-- **Type Safety**: Compile-time guarantees with Rust's type system
 
 ## Installation
 
@@ -56,6 +56,20 @@ The tool automatically detects gzip compression:
 sz_rabbit_publisher data.jsonl.gz
 ```
 
+### Multiple Files
+
+Process multiple files sequentially (default):
+
+```bash
+sz_rabbit_publisher file1.jsonl file2.jsonl file3.jsonl.gz
+```
+
+Process multiple files in parallel (one AMQP connection per file):
+
+```bash
+sz_rabbit_publisher --parallel file1.jsonl file2.jsonl file3.jsonl.gz
+```
+
 ### Custom Throttling
 
 Control the maximum number of pending confirmations:
@@ -75,10 +89,10 @@ sz_rabbit_publisher -v data.jsonl
 ## Command-Line Options
 
 ```
-sz_rabbit_publisher [OPTIONS] <INPUT_FILE>
+sz_rabbit_publisher [OPTIONS] <INPUT_FILE>...
 
 Arguments:
-  <INPUT_FILE>  Path to JSONL file (plain text or gzip)
+  <INPUT_FILE>...  One or more JSONL files (plain text or gzip)
 
 Options:
   -u, --url <AMQP_URL>           RabbitMQ connection URL
@@ -95,6 +109,7 @@ Options:
                                   [default: senzing.records]
   -m, --max-pending <NUM>        Max pending confirmations
                                   [default: 500]
+  -p, --parallel                 Process files in parallel (one connection per file)
   --report-interval <NUM>        Progress report interval (messages)
                                   [default: 10000]
   --retry-delay <SECS>           Retry delay on nack (seconds)
@@ -136,8 +151,9 @@ The publisher implements proper back pressure to prevent overwhelming RabbitMQ:
 
 ### Delivery Guarantees
 
-- **Publisher Confirms**: Enabled by default for delivery guarantees
-- **Automatic Retry**: Messages that receive nack are automatically retried (up to 3 attempts)
+- **Publisher Confirms**: Each confirm is individually verified (ack/nack)
+- **Automatic Retry**: Nacked messages are retried forever with configurable delay
+- **Automatic Reconnection**: Connection drops trigger reconnect; unconfirmed messages re-published
 - **Persistent Messages**: All messages published with delivery_mode=2 (persistent)
 - **Graceful Shutdown**: Waits for all confirmations before exiting
 
@@ -188,14 +204,9 @@ cargo fmt -- --check
 
 ## Performance
 
-### Comparison to Python Version
+### Throughput
 
-Expected improvements over the Python implementation:
-
-- **2-5x faster throughput**: Async I/O and zero-copy optimizations
-- **Lower memory usage**: No intermediate buffering
-- **Better back pressure**: Natural flow control via bounded channels
-- **Type safety**: Compile-time guarantees prevent runtime errors
+The publisher uses pipelined batch confirms (fire up to `max_pending` publishes, then verify confirms) to achieve ~18k msg/s, comparable to the Python async publisher reference implementation.
 
 ### Benchmarking
 
