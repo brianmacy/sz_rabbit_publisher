@@ -8,7 +8,8 @@ High-performance RabbitMQ publisher written in Rust for publishing JSONL (JSON L
 - **Multi-File**: Process multiple JSONL files sequentially or in parallel
 - **Resilient**: Automatic reconnection on broker failure; nacked messages retried forever
 - **Back Pressure**: Bounded channel implementation prevents memory exhaustion
-- **Gzip Support**: Automatically detects and decompresses gzip files
+- **Compression Support**: Automatically detects and decompresses gzip (`.gz`) and bzip2
+  (`.bz2`) files; bzip2 handles concatenated streams (`pbzip2`/`lbzip2` output)
 - **Progress Reporting**: Per-file interval rate with file labels in parallel mode
 - **CLI-First**: All configuration via command-line arguments or environment variables
 
@@ -48,13 +49,17 @@ export RABBITMQ_ROUTING_KEY="my.routing.key"
 sz_rabbit_publisher data.jsonl
 ```
 
-### With Gzip-Compressed Files
+### With Compressed Files (gzip / bzip2)
 
-The tool automatically detects gzip compression:
+The tool automatically detects gzip and bzip2 compression by magic bytes:
 
 ```bash
 sz_rabbit_publisher data.jsonl.gz
+sz_rabbit_publisher data.jsonl.bz2
 ```
+
+bzip2 decode is single-threaded per file (concatenated `pbzip2`/`lbzip2` streams are
+fully decoded). To decompress many files concurrently, pass them together with `--parallel`.
 
 ### Multiple Files
 
@@ -92,7 +97,7 @@ sz_rabbit_publisher -v data.jsonl
 sz_rabbit_publisher [OPTIONS] <INPUT_FILE>...
 
 Arguments:
-  <INPUT_FILE>...  One or more JSONL files (plain text or gzip)
+  <INPUT_FILE>...  One or more JSONL files (plain text, gzip, or bzip2 — auto-detected)
 
 Options:
   -u, --url <AMQP_URL>           RabbitMQ connection URL

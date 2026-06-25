@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -8,25 +9,44 @@ use tokio::io::AsyncReadExt;
 /// Magic bytes for gzip files
 const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
 
-/// Detects if a file is gzip-compressed by checking magic bytes
-pub async fn is_gzip_file<P: AsRef<Path>>(path: P) -> Result<bool> {
+/// Magic bytes for bzip2 files (`BZh`, followed by a `1`–`9` block-size digit)
+const BZIP2_MAGIC: [u8; 3] = [0x42, 0x5a, 0x68];
+
+/// Reads the first `N` bytes of a file for magic-byte sniffing. Returns the
+/// bytes actually read (a short/empty file yields fewer than `N`).
+async fn read_magic<P: AsRef<Path>, const N: usize>(path: P) -> Result<([u8; N], usize)> {
     let mut file = File::open(path.as_ref())
         .await
-        .context("Failed to open file for gzip detection")?;
-
-    let mut magic = [0u8; 2];
+        .context("Failed to open file for compression detection")?;
+    let mut magic = [0u8; N];
     let bytes_read = file
         .read(&mut magic)
         .await
         .context("Failed to read magic bytes")?;
-
-    Ok(bytes_read == 2 && magic == GZIP_MAGIC)
+    Ok((magic, bytes_read))
 }
 
-/// Active reader variant — plain text or gzip-compressed
+/// Detects if a file is gzip-compressed by checking magic bytes
+pub async fn is_gzip_file<P: AsRef<Path>>(path: P) -> Result<bool> {
+    let (magic, n) = read_magic::<_, 2>(path).await?;
+    Ok(n == 2 && magic == GZIP_MAGIC)
+}
+
+/// Detects if a file is bzip2-compressed by checking magic bytes
+pub async fn is_bz2_file<P: AsRef<Path>>(path: P) -> Result<bool> {
+    let (magic, n) = read_magic::<_, 3>(path).await?;
+    Ok(n == 3 && magic == BZIP2_MAGIC)
+}
+
+/// Active reader variant — plain text, gzip-, or bzip2-compressed.
+/// `Bz2` uses `MultiBzDecoder` so concatenated bzip2 streams (e.g. files
+/// produced by `pbzip2`/`lbzip2`) are fully decoded, not just the first stream.
+/// Decode is single-threaded per file; concurrency across multiple files comes
+/// from `--parallel`.
 enum LineReader {
     Plain(BufReader<std::fs::File>),
     Gzip(BufReader<GzDecoder<std::fs::File>>),
+    Bz2(BufReader<MultiBzDecoder<std::fs::File>>),
 }
 
 /// Streams lines lazily from a file, automatically handling gzip compression
@@ -40,12 +60,13 @@ impl FileReader {
     /// Automatically detects and handles gzip compression.
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
-        let is_gzip = is_gzip_file(path).await?;
 
-        let reader = if is_gzip {
+        let reader = if is_gzip_file(path).await? {
             let file = std::fs::File::open(path).context("Failed to open gzip file")?;
-            let decoder = GzDecoder::new(file);
-            LineReader::Gzip(BufReader::new(decoder))
+            LineReader::Gzip(BufReader::new(GzDecoder::new(file)))
+        } else if is_bz2_file(path).await? {
+            let file = std::fs::File::open(path).context("Failed to open bzip2 file")?;
+            LineReader::Bz2(BufReader::new(MultiBzDecoder::new(file)))
         } else {
             let file = std::fs::File::open(path).context("Failed to open plain text file")?;
             LineReader::Plain(BufReader::new(file))
@@ -66,6 +87,7 @@ impl FileReader {
             let bytes = match &mut self.reader {
                 LineReader::Plain(r) => r.read_line(&mut buf),
                 LineReader::Gzip(r) => r.read_line(&mut buf),
+                LineReader::Bz2(r) => r.read_line(&mut buf),
             };
 
             match bytes {
@@ -157,6 +179,133 @@ mod tests {
         assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
         assert!(reader.next_line().is_none());
         assert_eq!(reader.lines_read(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_read_bz2_file() {
+        use bzip2::Compression;
+        use bzip2::write::BzEncoder;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+
+        // Write bzip2-compressed content
+        {
+            let mut encoder = BzEncoder::new(Vec::new(), Compression::default());
+            writeln!(encoder, "line1").unwrap();
+            writeln!(encoder, "line2").unwrap();
+            writeln!(encoder, "line3").unwrap();
+            let compressed = encoder.finish().unwrap();
+            temp_file.write_all(&compressed).unwrap();
+            temp_file.flush().unwrap();
+        }
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_read_bz2_concatenated_streams() {
+        // Files produced by pbzip2/lbzip2 are multiple independent bzip2 streams
+        // concatenated. MultiBzDecoder must decode ALL of them; a plain
+        // single-stream decoder would silently stop after the first.
+        use bzip2::Compression;
+        use bzip2::write::BzEncoder;
+
+        let stream = |lines: &[&str]| {
+            let mut enc = BzEncoder::new(Vec::new(), Compression::default());
+            for l in lines {
+                writeln!(enc, "{l}").unwrap();
+            }
+            enc.finish().unwrap()
+        };
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(&stream(&["a1", "a2"])).unwrap();
+        temp_file.write_all(&stream(&["b1", "b2"])).unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        assert_eq!(reader.next_line().unwrap().unwrap(), "a1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "a2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "b1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "b2");
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_read_bz2_multiblock() {
+        // Enough data to span multiple bzip2 blocks (each block holds up to
+        // 900 KB of input at -9), exercising a large multi-block stream. ~300k lines of
+        // ~40 bytes ≈ 12 MB uncompressed → well over a dozen blocks.
+        use bzip2::Compression;
+        use bzip2::write::BzEncoder;
+
+        const N: usize = 300_000;
+        let mut temp_file = NamedTempFile::new().unwrap();
+        {
+            let mut encoder = BzEncoder::new(Vec::new(), Compression::best());
+            for i in 0..N {
+                writeln!(
+                    encoder,
+                    "{{\"RECORD_ID\":\"rec-{i:08}\",\"DATA_SOURCE\":\"TEST\"}}"
+                )
+                .unwrap();
+            }
+            let compressed = encoder.finish().unwrap();
+            temp_file.write_all(&compressed).unwrap();
+            temp_file.flush().unwrap();
+        }
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        // Verify first, an interior, and the last line decode correctly in order.
+        assert_eq!(
+            reader.next_line().unwrap().unwrap(),
+            "{\"RECORD_ID\":\"rec-00000000\",\"DATA_SOURCE\":\"TEST\"}"
+        );
+        let mut count = 1u64;
+        let mut last = String::new();
+        while let Some(line) = reader.next_line() {
+            last = line.unwrap();
+            count += 1;
+        }
+        assert_eq!(count, N as u64);
+        assert_eq!(reader.lines_read(), N as u64);
+        assert_eq!(
+            last,
+            format!(
+                "{{\"RECORD_ID\":\"rec-{:08}\",\"DATA_SOURCE\":\"TEST\"}}",
+                N - 1
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_is_bz2_file_detection() {
+        use bzip2::Compression;
+        use bzip2::write::BzEncoder;
+
+        // Plain text is not bz2
+        let mut plain_file = NamedTempFile::new().unwrap();
+        writeln!(plain_file, "plain text").unwrap();
+        plain_file.flush().unwrap();
+        assert!(!is_bz2_file(plain_file.path()).await.unwrap());
+
+        // bzip2 file is detected, and is not mistaken for gzip
+        let mut bz2_file = NamedTempFile::new().unwrap();
+        let mut encoder = BzEncoder::new(Vec::new(), Compression::default());
+        writeln!(encoder, "compressed").unwrap();
+        let compressed = encoder.finish().unwrap();
+        bz2_file.write_all(&compressed).unwrap();
+        bz2_file.flush().unwrap();
+
+        assert!(is_bz2_file(bz2_file.path()).await.unwrap());
+        assert!(!is_gzip_file(bz2_file.path()).await.unwrap());
     }
 
     #[tokio::test]
