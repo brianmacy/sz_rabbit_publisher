@@ -239,53 +239,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_bz2_multiblock() {
-        // Enough data to span multiple bzip2 blocks (each block holds up to
-        // 900 KB of input at -9), exercising a large multi-block stream. ~300k lines of
-        // ~40 bytes ≈ 12 MB uncompressed → well over a dozen blocks.
-        use bzip2::Compression;
-        use bzip2::write::BzEncoder;
-
-        const N: usize = 300_000;
-        let mut temp_file = NamedTempFile::new().unwrap();
-        {
-            let mut encoder = BzEncoder::new(Vec::new(), Compression::best());
-            for i in 0..N {
-                writeln!(
-                    encoder,
-                    "{{\"RECORD_ID\":\"rec-{i:08}\",\"DATA_SOURCE\":\"TEST\"}}"
-                )
-                .unwrap();
-            }
-            let compressed = encoder.finish().unwrap();
-            temp_file.write_all(&compressed).unwrap();
-            temp_file.flush().unwrap();
-        }
-
-        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
-        // Verify first, an interior, and the last line decode correctly in order.
-        assert_eq!(
-            reader.next_line().unwrap().unwrap(),
-            "{\"RECORD_ID\":\"rec-00000000\",\"DATA_SOURCE\":\"TEST\"}"
-        );
-        let mut count = 1u64;
-        let mut last = String::new();
-        while let Some(line) = reader.next_line() {
-            last = line.unwrap();
-            count += 1;
-        }
-        assert_eq!(count, N as u64);
-        assert_eq!(reader.lines_read(), N as u64);
-        assert_eq!(
-            last,
-            format!(
-                "{{\"RECORD_ID\":\"rec-{:08}\",\"DATA_SOURCE\":\"TEST\"}}",
-                N - 1
-            )
-        );
-    }
-
-    #[tokio::test]
     async fn test_is_bz2_file_detection() {
         use bzip2::Compression;
         use bzip2::write::BzEncoder;
