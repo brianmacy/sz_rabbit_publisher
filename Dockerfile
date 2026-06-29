@@ -1,5 +1,5 @@
 # Multi-stage build for minimal image size
-FROM rust:1.85 as builder
+FROM rust:1.88 AS builder
 
 WORKDIR /usr/src/sz_rabbit_publisher
 
@@ -19,22 +19,15 @@ COPY src ./src
 RUN cargo build --release
 
 # Runtime stage
-FROM debian:bookworm-slim
-
-# Install runtime dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user
-RUN useradd -m -u 1000 appuser
+# cc-debian13 (NOT cc-debian12): the builder is rust:1.88 on Debian trixie (glibc 2.41),
+# so the release binary may reference glibc >= 2.38 symbols that cc-debian12 (glibc 2.36)
+# lacks -> "GLIBC_2.38 not found" at startup. The sibling Senzing ports hit exactly this
+# and standardized on cc-debian13. It ships CA certificates (/etc/ssl/certs/ca-certificates.crt,
+# needed by lapin's rustls TLS) and a built-in nonroot user (uid 65532); :nonroot runs as it.
+FROM gcr.io/distroless/cc-debian13:nonroot
 
 # Copy binary from builder
 COPY --from=builder /usr/src/sz_rabbit_publisher/target/release/sz_rabbit_publisher /usr/local/bin/
-
-# Switch to non-root user
-USER appuser
 
 # Set entrypoint
 ENTRYPOINT ["sz_rabbit_publisher"]

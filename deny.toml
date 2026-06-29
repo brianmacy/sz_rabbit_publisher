@@ -3,23 +3,7 @@
 
 [advisories]
 version = 2
-# TODO: Remove these ignores when upstream fixes are available
-# These are transitive dependencies from lapin -> amq-protocol-tcp -> tcp-stream
-# tracking: https://github.com/lapin-rs/lapin/issues
-ignore = [
-    # rustls-pemfile is unmaintained, should migrate to rustls-pki-types
-    # Blocked by: tcp-stream needs to update its dependencies
-    # Impact: Low - maintenance advisory, not a security vulnerability
-    # Plan: Monitor tcp-stream releases, upgrade when fixed
-    "RUSTSEC-2025-0134",
-
-    # time crate RFC 2822 DoS (requires time >= 0.3.47)
-    # Blocked by: p12-keystore -> x509-parser uses time 0.3.45
-    # Impact: Medium (6.8) - DoS via stack exhaustion with malicious RFC 2822 input
-    # Mitigation: We don't parse RFC 2822 formatted data in our code path
-    # Plan: Monitor upstream releases, upgrade when tcp-stream/p12-keystore updates
-    "RUSTSEC-2026-0009",
-]
+ignore = []
 
 [licenses]
 version = 2
@@ -33,6 +17,9 @@ allow = [
     "Unicode-3.0",
     "Unicode-DFS-2016",
     "OpenSSL",
+    # webpki-root-certs (transitive via rustls-platform-verifier) uses CDLA-Permissive-2.0,
+    # a permissive open data license equivalent in intent to MIT/Apache-2.0 — not GPL/LGPL.
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
 
