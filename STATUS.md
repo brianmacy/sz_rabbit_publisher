@@ -2,10 +2,10 @@
 
 ## Current State (2026-06-29)
 
-**Branch**: `main`  
-**HEAD**: `c010baf` — Fix lapin 3.x to 4.x API migration after Dependabot PR #1  
-**Open PRs**: #27 (lapin bump), #28 (dtolnay/rust-toolchain SHA bump), #29 (actions/checkout bump), #31 (codecov-action bump)  
-**Working tree**: Multiple modified files (Dockerfile, Cargo.lock, deny.toml, workflow files, dependabot.yml, integration tests, CHANGELOG — uncommitted prep work)
+**Branch**: `harden-deps-ci-distroless`  
+**PR**: [#32](https://github.com/brianmacy/sz_rabbit_publisher/pull/32) — "Harden deps/CI and switch runtime to distroless" (open, CI monitoring in progress)  
+**Other open PRs**: #27 (lapin bump), #28 (dtolnay/rust-toolchain SHA bump), #29 (actions/checkout bump), #31 (codecov-action bump)  
+**Working tree**: clean apart from an untracked stray `nohup.out` (deliberately not committed)
 
 ## Dockerfile Change (prior session)
 
@@ -13,9 +13,9 @@ Migrated runtime stage from `debian:bookworm-slim` (hand-rolled) to `gcr.io/dist
 Builder upgraded from `rust:1.85` to `rust:1.88 AS builder`.  
 Rationale: rust:1.88 targets Debian trixie (glibc 2.41); cc-debian12 (glibc 2.36) lacks glibc >= 2.38 symbols → "GLIBC_2.38 not found" at startup. Matches the distroless pattern used by sibling Senzing Rust ports.
 
-## Prep Work Done (2026-06-29) — NOT YET COMMITTED
+## Prep Work Done (2026-06-29) — COMMITTED IN PR #32
 
-All items below are complete and verified. Awaiting commit.
+All items below are complete, verified, and committed on `harden-deps-ci-distroless` (PR #32). CI monitoring in progress.
 
 ### Security Advisories — CLEARED
 `cargo update` lifted all 6 open RUSTSEC advisories:
