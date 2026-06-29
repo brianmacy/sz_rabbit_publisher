@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Bumped dependency versions to clear all open RUSTSEC advisories via `cargo update`:
+  - `rustls-webpki` 0.103.10 → 0.103.13 (clears RUSTSEC-2026-0098, -0099, -0104)
+  - `anyhow` 1.0.102 → 1.0.103 (clears RUSTSEC-2026-0190 unsoundness in `Error::downcast_mut`)
+  - `hickory-proto` 0.25.2 → 0.26.1 (clears RUSTSEC-2026-0118, -0119)
+  - Also removed stale deny.toml advisory ignores (RUSTSEC-2025-0134, RUSTSEC-2026-0009 now fixed)
+  - Added `CDLA-Permissive-2.0` to deny.toml license allowlist (new transitive dep `webpki-root-certs` via `rustls-platform-verifier`)
+- SHA-pinned all GitHub Actions in ci.yml, security.yml, and release.yml; every
+  `uses:` line now references a 40-hex commit SHA with a `# vX.Y.Z` or
+  `# <branch> (pinned YYYY-MM-DD)` comment
+
+### Changed
+
+- Added `cooldown: default-days: 21` to every ecosystem entry in `.github/dependabot.yml`
+  to dampen noisy update PRs
+
+### Fixed
+
+- Integration tests now check broker reachability at startup and emit a loud
+  `eprintln!` skip notice when no RabbitMQ broker is available (e.g., local dev
+  with no broker running). `cargo test` without a broker now passes unit tests
+  and loudly skips integration tests rather than failing with ACCESS-REFUSED.
+
 ### Added
 
 - Multi-file support: accept multiple JSONL files as positional arguments
@@ -20,9 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Runtime Docker image switched to distroless (`gcr.io/distroless/cc-debian12:nonroot`):
-  no shell or package manager, runs as nonroot. Builder bumped `rust:1.85` -> `rust:1.88`
+- Upgraded Docker builder from `rust:1.85` to `rust:1.88` (Debian trixie / glibc 2.41)
   to match the crate MSRV (edition 2024 / rust-version 1.88)
+- Replaced `debian:bookworm-slim` runtime stage with distroless `gcr.io/distroless/cc-debian13:nonroot`
+  (no shell or package manager, runs as nonroot); cc-debian13 (not cc-debian12) is
+  required because rust:1.88 may reference glibc >= 2.38 symbols absent in cc-debian12 (glibc 2.36),
+  and distroless ships CA certificates needed by lapin's rustls TLS plus a built-in nonroot user
 - Replaced sequential per-message publisher confirms with pipelined batch confirms
   - Each `PublisherConfirm` is awaited individually to verify actual broker ack/nack
   - Nacked messages (reject-publish) are retried forever with configurable delay

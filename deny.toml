@@ -20,6 +20,8 @@ allow = [
     "Unicode-3.0",
     "Unicode-DFS-2016",
     "OpenSSL",
+    # webpki-root-certs (transitive via rustls-platform-verifier) uses CDLA-Permissive-2.0,
+    # a permissive open data license equivalent in intent to MIT/Apache-2.0 — not GPL/LGPL.
     "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
