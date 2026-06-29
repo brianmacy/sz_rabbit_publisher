@@ -37,11 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--parallel` / `-p` flag to publish all files concurrently (one AMQP connection per file)
 - Overall summary printed when processing multiple files
 - `--help` now documents progress output fields
+- bzip2 (`.bz2`) input support, auto-detected by magic bytes (`BZh`) alongside gzip.
+  Uses the `bzip2` crate's `MultiBzDecoder` (pure-Rust `libbz2-rs-sys` backend), so
+  concatenated streams (e.g. `pbzip2`/`lbzip2` output) decode fully. Decode is
+  single-threaded per file; concurrency across files comes from `--parallel`
 
 ### Changed
 
 - Upgraded Docker builder from `rust:1.85` to `rust:1.88` (Debian trixie / glibc 2.41)
-- Replaced `debian:bookworm-slim` runtime stage with `gcr.io/distroless/cc-debian13:nonroot`;
+  to match the crate MSRV (edition 2024 / rust-version 1.88)
+- Replaced `debian:bookworm-slim` runtime stage with distroless `gcr.io/distroless/cc-debian13:nonroot`
+  (no shell or package manager, runs as nonroot); cc-debian13 (not cc-debian12) is
   required because rust:1.88 may reference glibc >= 2.38 symbols absent in cc-debian12 (glibc 2.36),
   and distroless ships CA certificates needed by lapin's rustls TLS plus a built-in nonroot user
 - Replaced sequential per-message publisher confirms with pipelined batch confirms

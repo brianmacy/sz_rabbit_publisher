@@ -26,7 +26,7 @@ Progress output fields:
   rate       Confirmed messages per second (interval rate, not cumulative)"
 )]
 struct Args {
-    /// One or more JSONL files (plain text or gzip)
+    /// One or more JSONL files (plain text, gzip, or bzip2 — auto-detected)
     #[arg(value_name = "INPUT_FILE", required = true, num_args = 1..)]
     input_files: Vec<PathBuf>,
 

@@ -58,6 +58,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable (pinned 2026-06-29)
         with:
+          toolchain: stable
           components: clippy
 
       - name: Run clippy
@@ -73,6 +74,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable (pinned 2026-06-29)
         with:
+          toolchain: stable
           components: rustfmt
 
       - name: Check formatting

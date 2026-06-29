@@ -13,6 +13,9 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    # Permissive BSD/zlib-style license of the bzip2 reference implementation;
+    # required by libbz2-rs-sys (the bzip2 crate's decoder backend). No copyleft.
+    "bzip2-1.0.6",
     "ISC",
     "Unicode-3.0",
     "Unicode-DFS-2016",
