@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-22
+
+### Added
+
+- `--skip-lines N` / `SENZING_SKIP_LINES`: skip the first N non-empty records
+  before publishing, to resume an interrupted single-file load. Compressed inputs
+  (gzip/bzip2) have no seek, so the skipped prefix is decoded and discarded. Rejected
+  loudly with more than one input file (per-file skipping would silently drop records).
+  Safe by idempotency: the engine's `add_record` treats a re-published record as an
+  update, so over-skipping never loses data and under-skipping only re-sends a few.
+
 ### Security
 
 - Bumped dependency versions to clear all open RUSTSEC advisories via `cargo update`:

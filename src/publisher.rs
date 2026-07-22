@@ -20,6 +20,8 @@ pub struct PublisherConfig {
     pub max_pending: usize,
     pub retry_delay: Duration,
     pub report_interval: u64,
+    /// Skip the first N non-empty records before publishing (resume support).
+    pub skip_lines: u64,
 }
 
 /// RabbitMQ publisher with delivery confirmations and back pressure
@@ -46,6 +48,29 @@ impl RabbitMQPublisher {
         let mut reader = FileReader::open(file_path)
             .await
             .context("Failed to open input file")?;
+
+        // Resume support: discard the first N already-published records. No seek on
+        // compressed input, so this decodes through the stream. Idempotent add_record
+        // makes any overlap harmless.
+        if self.config.skip_lines > 0 {
+            tracing::info!(
+                "Resuming: skipping first {} records of {}",
+                self.config.skip_lines,
+                file_path
+            );
+            let skipped = reader
+                .skip(self.config.skip_lines)
+                .context("Failed while skipping records for resume")?;
+            if skipped < self.config.skip_lines {
+                tracing::warn!(
+                    "Reached EOF after skipping only {} of {} requested records — nothing to publish",
+                    skipped,
+                    self.config.skip_lines
+                );
+            } else {
+                tracing::info!("Skip complete ({skipped} records); publishing from here");
+            }
+        }
 
         // Connect to RabbitMQ (retries forever until connected)
         tracing::info!("Connecting to RabbitMQ at {}", self.config.amqp_url);
@@ -253,6 +278,7 @@ mod tests {
             max_pending: 500,
             retry_delay: Duration::from_secs(3),
             report_interval: 10000,
+            skip_lines: 0,
         };
 
         assert_eq!(config.amqp_url, "amqp://localhost");
@@ -270,6 +296,7 @@ mod tests {
             max_pending: 500,
             retry_delay: Duration::from_secs(3),
             report_interval: 10000,
+            skip_lines: 0,
         };
 
         let publisher = RabbitMQPublisher::new(config);

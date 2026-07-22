@@ -109,6 +109,42 @@ impl FileReader {
         }
     }
 
+    /// Skips (reads and discards) the first `n` non-empty records, for resuming
+    /// an interrupted publish. Empty lines are consumed but not counted, exactly
+    /// as `next_line` filters them, so `skip(n)` lines up with the `total` a prior
+    /// run reported. Compressed inputs have no seek, so this decodes through the
+    /// stream. Returns the number actually skipped (fewer than `n` only if EOF is
+    /// reached first). Does not affect `lines_read` (which counts this run's reads).
+    ///
+    /// Over- or under-skipping is safe: the engine's `add_record` is idempotent,
+    /// so any re-published record is an update, not a duplicate.
+    pub fn skip(&mut self, n: u64) -> Result<u64> {
+        let mut skipped = 0u64;
+        let mut buf = String::new();
+        while skipped < n {
+            buf.clear();
+            let bytes = match &mut self.reader {
+                LineReader::Plain(r) => r.read_line(&mut buf),
+                LineReader::Gzip(r) => r.read_line(&mut buf),
+                LineReader::Bz2(r) => r.read_line(&mut buf),
+            };
+            match bytes {
+                Ok(0) => break, // EOF before N — caller sees fewer skipped
+                Ok(_) => {
+                    let trimmed = buf.trim_end_matches('\n').trim_end_matches('\r');
+                    if trimmed.is_empty() {
+                        continue; // empty lines are not records (mirrors next_line)
+                    }
+                    skipped += 1;
+                }
+                Err(e) => {
+                    return Err(anyhow::Error::new(e).context("Failed to read line during skip"));
+                }
+            }
+        }
+        Ok(skipped)
+    }
+
     /// Returns the number of lines read so far
     pub fn lines_read(&self) -> u64 {
         self.lines_read
@@ -306,5 +342,53 @@ mod tests {
     async fn test_file_not_found() {
         let result = FileReader::open("/nonexistent/file.txt").await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_skip_lines_resume() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        for i in 1..=5 {
+            writeln!(temp_file, "line{i}").unwrap();
+        }
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        assert_eq!(reader.skip(2).unwrap(), 2);
+        // First record after skipping the first two is line3.
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line4");
+        assert_eq!(reader.next_line().unwrap().unwrap(), "line5");
+        assert!(reader.next_line().is_none());
+        // lines_read counts only this run's reads (post-skip), not skipped records.
+        assert_eq!(reader.lines_read(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_skip_lines_counts_only_non_empty() {
+        // Empty lines are consumed but not counted, mirroring next_line's filter,
+        // so skip(2) lands past the second *record*, not the second physical line.
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "rec1").unwrap();
+        temp_file.write_all(b"\n").unwrap(); // blank line between records
+        writeln!(temp_file, "rec2").unwrap();
+        writeln!(temp_file, "rec3").unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        assert_eq!(reader.skip(2).unwrap(), 2);
+        assert_eq!(reader.next_line().unwrap().unwrap(), "rec3");
+    }
+
+    #[tokio::test]
+    async fn test_skip_past_eof_returns_fewer() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "only1").unwrap();
+        writeln!(temp_file, "only2").unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        // Asking to skip more than exist stops at EOF and reports the real count.
+        assert_eq!(reader.skip(10).unwrap(), 2);
+        assert!(reader.next_line().is_none());
     }
 }

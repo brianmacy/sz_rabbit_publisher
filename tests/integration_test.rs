@@ -155,6 +155,7 @@ async fn test_publish_small_file() -> Result<()> {
         max_pending: 100,
         retry_delay: Duration::from_secs(1),
         report_interval: 1,
+        skip_lines: 0,
     };
 
     let publisher = RabbitMQPublisher::new(config);
@@ -202,6 +203,7 @@ async fn test_publish_gzip_file() -> Result<()> {
         max_pending: 100,
         retry_delay: Duration::from_secs(1),
         report_interval: 1,
+        skip_lines: 0,
     };
 
     let publisher = RabbitMQPublisher::new(config);
@@ -243,6 +245,7 @@ async fn test_publish_empty_file() -> Result<()> {
         max_pending: 100,
         retry_delay: Duration::from_secs(1),
         report_interval: 1,
+        skip_lines: 0,
     };
 
     let publisher = RabbitMQPublisher::new(config);
@@ -289,6 +292,7 @@ async fn test_publish_large_file_with_throttling() -> Result<()> {
         max_pending: 50, // Small max_pending to test throttling
         retry_delay: Duration::from_millis(100),
         report_interval: 100,
+        skip_lines: 0,
     };
 
     let publisher = RabbitMQPublisher::new(config);
@@ -332,6 +336,7 @@ async fn test_invalid_file_path() -> Result<()> {
         max_pending: 100,
         retry_delay: Duration::from_secs(1),
         report_interval: 1,
+        skip_lines: 0,
     };
 
     let publisher = RabbitMQPublisher::new(config);

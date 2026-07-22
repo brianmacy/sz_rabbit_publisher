@@ -78,6 +78,15 @@ struct Args {
     #[arg(long = "retry-delay", default_value = "3")]
     retry_delay: u64,
 
+    /// Skip the first N non-empty records before publishing, to resume an
+    /// interrupted load. Single-file input only. Compressed inputs have no seek,
+    /// so the skipped prefix is decoded and discarded. Re-publishing is safe:
+    /// the engine's add_record is idempotent, so any overlap is an update, not a
+    /// duplicate — over-skipping never loses data, under-skipping just re-sends a
+    /// few records. To resume, pass the cumulative record count already published.
+    #[arg(long = "skip-lines", env = "SENZING_SKIP_LINES", default_value = "0")]
+    skip_lines: u64,
+
     /// Process files in parallel (one connection per file)
     #[arg(short = 'p', long = "parallel")]
     parallel: bool,
@@ -117,6 +126,15 @@ async fn main() -> Result<()> {
         }
     }
 
+    // --skip-lines is a single-file resume knob; applying it per-file across many
+    // files would silently drop the first N records of EACH file. Reject loudly.
+    if args.skip_lines > 0 && args.input_files.len() > 1 {
+        anyhow::bail!(
+            "--skip-lines is only valid with a single input file (got {})",
+            args.input_files.len()
+        );
+    }
+
     let config = PublisherConfig {
         amqp_url: args.amqp_url,
         exchange: args.exchange,
@@ -125,6 +143,7 @@ async fn main() -> Result<()> {
         max_pending: args.max_pending,
         retry_delay: Duration::from_secs(args.retry_delay),
         report_interval: args.report_interval,
+        skip_lines: args.skip_lines,
     };
 
     let multi_file = args.input_files.len() > 1;
@@ -254,5 +273,23 @@ mod tests {
     fn test_no_files_fails() {
         let result = Args::try_parse_from(["sz_rabbit_publisher"]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_skip_lines_default_zero() {
+        let args = Args::try_parse_from(["sz_rabbit_publisher", "file.jsonl"]).unwrap();
+        assert_eq!(args.skip_lines, 0);
+    }
+
+    #[test]
+    fn test_skip_lines_parsed() {
+        let args = Args::try_parse_from([
+            "sz_rabbit_publisher",
+            "--skip-lines",
+            "6420000",
+            "file.jsonl",
+        ])
+        .unwrap();
+        assert_eq!(args.skip_lines, 6_420_000);
     }
 }
