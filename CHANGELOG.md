@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencies (one rolled-up change for Dependabot #54, #52, #51, #50, #47,
+  #45, #41, #39, #35): hickory-resolver 0.26.3, lapin 4.11.0, flate2 1.1.10,
+  clap 4.6.6, tokio 1.53.1, anyhow 1.0.104, crossbeam-epoch 0.9.20
+  (RUSTSEC-2026-0204); CI actions/checkout v7.0.1, actions/cache v6.1.0, and
+  every `dtolnay/rust-toolchain` use pinned to one master SHA with an explicit
+  `toolchain:` input.
+
 ### Removed
 
 - The release workflow's crates.io publish job. This crate is not published to

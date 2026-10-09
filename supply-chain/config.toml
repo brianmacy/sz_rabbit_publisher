@@ -53,7 +53,7 @@ version = "3.0.11"
 criteria = "safe-to-deploy"
 
 [[exemptions.anyhow]]
-version = "1.0.103"
+version = "1.0.104"
 criteria = "safe-to-deploy"
 
 [[exemptions.asn1-rs]]
@@ -177,15 +177,15 @@ version = "0.4.4"
 criteria = "safe-to-deploy"
 
 [[exemptions.clap]]
-version = "4.6.1"
+version = "4.6.6"
 criteria = "safe-to-deploy"
 
 [[exemptions.clap_builder]]
-version = "4.6.0"
+version = "4.6.6"
 criteria = "safe-to-deploy"
 
 [[exemptions.clap_derive]]
-version = "4.6.1"
+version = "4.6.4"
 criteria = "safe-to-deploy"
 
 [[exemptions.clap_lex]]
@@ -253,7 +253,7 @@ version = "0.5.15"
 criteria = "safe-to-deploy"
 
 [[exemptions.crossbeam-epoch]]
-version = "0.9.18"
+version = "0.9.20"
 criteria = "safe-to-deploy"
 
 [[exemptions.crossbeam-utils]]
@@ -333,7 +333,7 @@ version = "0.4.7"
 criteria = "safe-to-deploy"
 
 [[exemptions.flate2]]
-version = "1.1.9"
+version = "1.1.10"
 criteria = "safe-to-deploy"
 
 [[exemptions.flume]]
@@ -409,15 +409,15 @@ version = "0.4.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.hickory-net]]
-version = "0.26.1"
+version = "0.26.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.hickory-proto]]
-version = "0.26.1"
+version = "0.26.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.hickory-resolver]]
-version = "0.26.1"
+version = "0.26.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.hmac]]
@@ -505,7 +505,7 @@ version = "0.3.103"
 criteria = "safe-to-deploy"
 
 [[exemptions.lapin]]
-version = "4.10.0"
+version = "4.11.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.lazy_static]]
@@ -549,7 +549,7 @@ version = "0.2.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.miniz_oxide]]
-version = "0.8.9"
+version = "0.9.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.mio]]
@@ -880,6 +880,10 @@ criteria = "safe-to-deploy"
 version = "2.0.118"
 criteria = "safe-to-deploy"
 
+[[exemptions.syn]]
+version = "3.0.6"
+criteria = "safe-to-deploy"
+
 [[exemptions.synstructure]]
 version = "0.13.2"
 criteria = "safe-to-deploy"
@@ -941,7 +945,7 @@ version = "0.1.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.tokio]]
-version = "1.52.3"
+version = "1.53.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.tokio-macros]]
@@ -1154,6 +1158,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.zerovec-derive]]
 version = "0.11.3"
+criteria = "safe-to-deploy"
+
+[[exemptions.zlib-rs]]
+version = "0.6.8"
 criteria = "safe-to-deploy"
 
 [[exemptions.zmij]]
