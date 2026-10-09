@@ -190,8 +190,9 @@ impl StatsTracker {
         stats.pending = stats.pending.saturating_sub(1);
     }
 
-    /// `n` published-but-unconfirmed messages are being re-published after a
-    /// connection failure: they leave `pending` and count as `republished`.
+    /// `n` published messages whose delivery is unproven (a connection failure,
+    /// or an ack in a batch with unroutable returns) are being re-published:
+    /// they leave `pending` and count as `republished`.
     pub fn requeue_unconfirmed(&self, n: u64) {
         let mut stats = self.stats.lock().unwrap();
         stats.republished += n;

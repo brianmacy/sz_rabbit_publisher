@@ -31,6 +31,22 @@ the previous release.
 - `--skip-lines` docs claimed over-skipping was safe; it loses every record
   never sent. Docs corrected and a warning is logged when skipping.
 - `pending` no longer stays above 0 after a connection failure.
+- An unroutable record could still be counted as acked and lost when a confirm
+  batch mixed routable and unroutable publishes: lapin 4.10 attaches a
+  `basic.return` to an arbitrary tag of a coalesced `basic.ack multiple=true`
+  (`complete_pending_before` iterates a `HashMap`), so the really-returned
+  message surfaced as a plain ack. Any batch with a return now re-publishes all
+  of its acked messages (possible duplicates, counted `republished`).
+- `--skip-lines` resume hint on a stop signal in multi-file mode now says to
+  resume the file on its own (`--skip-lines` is rejected with several files).
+- Records ending in several `\r`s before `\n` keep stripping ALL trailing `\r`
+  (byte-reader regression restored to the pre-change behaviour).
+
+### Security
+
+- `rustls` 0.23.41 -> 0.23.45 (RUSTSEC-2026-0285); yanked `chacha20` 0.10.1 ->
+  0.10.2 and `spin` 0.9.8 -> 0.9.9. MSRV stays 1.88. `cargo deny` advisories
+  clean; unused license allowances dropped.
 
 ### Added
 
@@ -39,8 +55,9 @@ the previous release.
   plus a periodic warning while a confirm is withheld.
 - SIGINT/SIGTERM print the summary and the exact resume point (`--skip-lines`)
   and exit 130/143.
-- `tests/backpressure_test.rs` (Docker, `--ignored`; quorum by default) and a CI
-  job running it for quorum and classic queues.
+- `tests/backpressure_test.rs` (Docker, `--ignored`; `rabbitmq:4.3-management`
+  and quorum queues by default) and a CI job running it on RabbitMQ 4.3 for
+  quorum and classic queues.
 
 ### Changed
 

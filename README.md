@@ -166,7 +166,10 @@ failure may be duplicated (reported as `republished`), never lost.
 - **Mandatory publishing**: a message the broker cannot route (exchange has no
   binding for the routing key) is *returned*, logged as an ERROR, counted as
   `returned` (never as acked) and retried every `--retry-delay` until a binding
-  exists. Without `mandatory` the broker acks and silently discards it.
+  exists. Without `mandatory` the broker acks and silently discards it. The
+  client library cannot always tell which ack a return belongs to, so every
+  acked message in a confirm batch that had a return is re-published too
+  (possible duplicates, counted `republished`).
 - **Nacks** (e.g. `x-max-length` + `x-overflow: reject-publish`): logged and
   retried forever after `--retry-delay`
 - **Resource alarms** (memory/disk → `connection.blocked`): logged; publishing
@@ -226,14 +229,15 @@ The Docker Compose setup automatically creates all necessary exchanges, queues, 
 `tests/backpressure_test.rs` starts a throwaway RabbitMQ container per test and
 proves no record is lost under: queue overflow with `reject-publish` and a slow
 consumer, a memory alarm mid-publish, killed connections plus a broker
-`stop_app`/`start_app`, a missing binding (unroutable), a truncated gzip, a
+`stop_app`/`start_app`, a missing binding (unroutable), routable and unroutable
+publishes mixed in one confirm batch (binding flipped mid-run), a truncated gzip, a
 non-UTF-8 line, a multi-member gzip, and SIGTERM with resume. Each test drains
 the queue and checks every record id.
 
 ```bash
-cargo test --test backpressure_test -- --ignored                       # quorum queues (default)
+cargo test --test backpressure_test -- --ignored                       # rabbitmq:4.3-management, quorum (default)
 TEST_QUEUE_TYPE=classic cargo test --test backpressure_test -- --ignored
-TEST_RABBITMQ_IMAGE=rabbitmq:4-management cargo test --test backpressure_test -- --ignored
+TEST_RABBITMQ_IMAGE=rabbitmq:3-management cargo test --test backpressure_test -- --ignored
 ```
 
 They are `#[ignore]`d in a plain `cargo test`; when run, missing Docker is a failure.

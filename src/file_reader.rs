@@ -159,16 +159,16 @@ impl FileReader {
     }
 }
 
-/// Length of `line` without its trailing `\n` / `\r\n` terminator.
+/// Length of `line` without its trailing `\n` and ALL trailing `\r`s
+/// (same as the original `trim_end_matches('\n').trim_end_matches('\r')`).
 fn trimmed_len(line: &[u8]) -> usize {
-    let mut len = line.len();
-    if len > 0 && line[len - 1] == b'\n' {
-        len -= 1;
-    }
-    if len > 0 && line[len - 1] == b'\r' {
-        len -= 1;
-    }
-    len
+    let without_lf = line.len() - line.iter().rev().take_while(|b| **b == b'\n').count();
+    without_lf
+        - line[..without_lf]
+            .iter()
+            .rev()
+            .take_while(|b| **b == b'\r')
+            .count()
 }
 
 #[cfg(test)]
@@ -176,6 +176,17 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_trimmed_len_strips_all_trailing_cr() {
+        assert_eq!(trimmed_len(b"abc\n"), 3);
+        assert_eq!(trimmed_len(b"abc\r\n"), 3);
+        assert_eq!(trimmed_len(b"abc\r\r\n"), 3);
+        assert_eq!(trimmed_len(b"abc\r\r"), 3);
+        assert_eq!(trimmed_len(b"a\rc\n"), 3);
+        assert_eq!(trimmed_len(b"\r\r\n"), 0);
+        assert_eq!(trimmed_len(b""), 0);
+    }
 
     #[tokio::test]
     async fn test_read_plain_text_file() {

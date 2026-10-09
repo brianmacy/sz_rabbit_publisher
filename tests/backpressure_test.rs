@@ -14,7 +14,7 @@
 //! ```
 //!
 //! When run, missing infrastructure is a hard FAILURE, never a skip.
-//! `TEST_RABBITMQ_IMAGE` overrides the broker image (default `rabbitmq:3-management`).
+//! `TEST_RABBITMQ_IMAGE` overrides the broker image (default `rabbitmq:4.3-management`).
 //! `TEST_QUEUE_TYPE` selects the queue type (default `quorum`, the production
 //! configuration; `classic` also supported).
 
@@ -54,7 +54,7 @@ impl Broker {
             .with_test_writer()
             .try_init();
         let image = std::env::var("TEST_RABBITMQ_IMAGE")
-            .unwrap_or_else(|_| "rabbitmq:3-management".to_string());
+            .unwrap_or_else(|_| "rabbitmq:4.3-management".to_string());
         let name = format!("szpub-bp-{test}-{}", std::process::id());
         // Remove a leftover from an aborted earlier run with the same pid.
         let _ = Command::new("docker").args(["rm", "-f", &name]).output();
@@ -514,6 +514,62 @@ async fn test_unroutable_is_retried_not_acked() -> Result<()> {
     let stats = join_publish(handle).await?;
     assert_stats(&stats, N, "unroutable")?;
     assert_all_arrived(&drain_queue(&url).await?, N, "unroutable")?;
+    Ok(())
+}
+
+/// 4b. Routable and unroutable publishes MIXED in one confirm batch. lapin
+///     attaches a `basic.return` to an arbitrary tag of a coalesced
+///     `basic.ack multiple=true` (HashMap order), so the message that was
+///     really returned can surface as a plain `Ack(None)`. Toggling the binding
+///     while publishing produces such batches; every record must still arrive.
+#[tokio::test]
+#[ignore = "needs Docker; run with --ignored"]
+async fn test_mixed_routable_unroutable_batch_loses_nothing() -> Result<()> {
+    const N: u64 = 10_000;
+    let broker = Broker::start_ready("mixed").await?;
+    let url = broker.amqp_url.clone();
+    declare_topology(&url, FieldTable::default(), true).await?;
+
+    let file = write_records(N)?;
+    let publisher = Arc::new(RabbitMQPublisher::new(config(
+        &url,
+        200,
+        Duration::from_millis(1),
+    )));
+    let handle = spawn_publish(publisher.clone(), &file);
+
+    // Flip the binding on/off for a while so batches straddle the flips.
+    let (conn, ch) = open_channel(&url).await?;
+    let deadline = Instant::now() + Duration::from_secs(6);
+    let mut flips = 0u64;
+    while Instant::now() < deadline && !handle.is_finished() {
+        ch.queue_unbind(
+            QUEUE.into(),
+            EXCHANGE.into(),
+            ROUTING_KEY.into(),
+            FieldTable::default(),
+        )
+        .await?;
+        tokio::time::sleep(Duration::from_millis(3)).await;
+        bind_queue(&ch).await?;
+        tokio::time::sleep(Duration::from_millis(3)).await;
+        flips += 1;
+    }
+    conn.close(0, "flipping done".into()).await.ok();
+
+    let stats = join_publish(handle).await?;
+    eprintln!("mixed: {flips} binding flips");
+    assert_stats(&stats, N, "mixed")?;
+    ensure!(
+        stats.returned > 0,
+        "mixed: no returns — unroutable publishes were not exercised"
+    );
+    let dups = assert_all_arrived(&drain_queue(&url).await?, N, "mixed")?;
+    ensure!(
+        dups <= stats.republished,
+        "mixed: {dups} duplicates but only {} republished were reported",
+        stats.republished
+    );
     Ok(())
 }
 

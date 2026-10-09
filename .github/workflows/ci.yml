@@ -132,6 +132,7 @@ jobs:
       - name: Run back-pressure tests
         env:
           TEST_QUEUE_TYPE: ${{ matrix.queue_type }}
+          TEST_RABBITMQ_IMAGE: rabbitmq:4.3-management
         run: cargo test --test backpressure_test -- --ignored
 
   build:

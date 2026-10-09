@@ -109,11 +109,11 @@ version = "1.5.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.aws-lc-rs]]
-version = "1.17.0"
+version = "1.18.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.aws-lc-sys]]
-version = "0.41.0"
+version = "0.45.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.backon]]
@@ -169,7 +169,7 @@ version = "1.0.4"
 criteria = "safe-to-deploy"
 
 [[exemptions.chacha20]]
-version = "0.10.1"
+version = "0.10.2"
 criteria = "safe-to-deploy"
 
 [[exemptions.cipher]]
@@ -652,6 +652,10 @@ criteria = "safe-to-deploy"
 version = "0.7.1"
 criteria = "safe-to-deploy"
 
+[[exemptions.pkg-config]]
+version = "0.3.34"
+criteria = "safe-to-deploy"
+
 [[exemptions.portable-atomic]]
 version = "1.13.1"
 criteria = "safe-to-deploy"
@@ -729,7 +733,7 @@ version = "1.1.4"
 criteria = "safe-to-run"
 
 [[exemptions.rustls]]
-version = "0.23.41"
+version = "0.23.45"
 criteria = "safe-to-deploy"
 
 [[exemptions.rustls-connector]]
@@ -753,7 +757,7 @@ version = "0.1.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.rustls-webpki]]
-version = "0.103.13"
+version = "0.103.15"
 criteria = "safe-to-deploy"
 
 [[exemptions.rustversion]]
@@ -853,7 +857,7 @@ version = "0.6.4"
 criteria = "safe-to-deploy"
 
 [[exemptions.spin]]
-version = "0.9.8"
+version = "0.9.9"
 criteria = "safe-to-deploy"
 
 [[exemptions.spki]]

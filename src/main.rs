@@ -275,20 +275,31 @@ async fn stop_signal() -> (&'static str, i32) {
 /// On a stop signal: print each file's stats and the exact resume point.
 fn report_interrupted(jobs: &[(PathBuf, Arc<RabbitMQPublisher>)], signal: &str) {
     eprintln!("\n=== INTERRUPTED by {signal}: publishing did NOT complete ===");
+    let multi_file = jobs.len() > 1;
     for (path, publisher) in jobs {
         let stats = publisher.stats();
         println!("\n[{}] {}", path.display(), stats.final_summary());
-        println!("{}", interrupted_line(&stats, publisher.skip_lines()));
+        println!(
+            "{}",
+            interrupted_line(&stats, publisher.skip_lines(), multi_file)
+        );
     }
 }
 
-fn interrupted_line(stats: &Stats, skip_lines: u64) -> String {
+/// The per-file stop report. `--skip-lines` is rejected with several input
+/// files, so in multi-file mode the hint says to resume the file on its own.
+fn interrupted_line(stats: &Stats, skip_lines: u64, multi_file: bool) -> String {
     if stats.total_records == 0 {
         return "Not started: re-run this file from the beginning".to_string();
     }
+    let how = if multi_file {
+        "--skip-lines is single-file only: resume by running this file ON ITS OWN with"
+    } else {
+        "Resume this file with"
+    };
     format!(
         "INTERRUPTED: {} of {} records read were confirmed; the first {} are all confirmed. \
-         Resume this file with --skip-lines {}",
+         {how} --skip-lines {}",
         stats.acked,
         stats.total_records,
         stats.confirmed_prefix,
@@ -361,9 +372,22 @@ mod tests {
         stats.total_records = 100;
         stats.acked = 90;
         stats.confirmed_prefix = 85;
-        let line = interrupted_line(&stats, 1000);
+        let line = interrupted_line(&stats, 1000, false);
         assert!(line.contains("90 of 100"), "{line}");
-        assert!(line.contains("--skip-lines 1085"), "{line}");
-        assert!(interrupted_line(&Stats::default(), 0).contains("Not started"));
+        assert!(
+            line.contains("Resume this file with --skip-lines 1085"),
+            "{line}"
+        );
+        assert!(interrupted_line(&Stats::default(), 0, false).contains("Not started"));
+    }
+
+    #[test]
+    fn test_interrupted_line_multi_file_says_run_file_alone() {
+        let mut stats = Stats::default();
+        stats.total_records = 100;
+        stats.confirmed_prefix = 85;
+        let line = interrupted_line(&stats, 0, true);
+        assert!(!line.contains("Resume this file with"), "{line}");
+        assert!(line.contains("ON ITS OWN with --skip-lines 85"), "{line}");
     }
 }

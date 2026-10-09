@@ -233,6 +233,13 @@ impl RabbitMQPublisher {
     /// Await every pending confirm. Acks are counted; nacks and unroutable
     /// returns go back to `unsent`. On a connection failure, the failed message
     /// goes back to `unsent` and the rest stay in `pending` for the caller.
+    ///
+    /// lapin (4.10) attaches a `basic.return` to an ARBITRARY tag of a
+    /// coalesced `basic.ack multiple=true` (it iterates a HashMap), so in a
+    /// batch with any return, a plain `Ack(None)` may belong to the message
+    /// that was really returned. Such a batch's `Ack(None)` messages are
+    /// therefore re-published (possible duplicates, counted `republished`)
+    /// rather than counted acked.
     async fn drain_confirms(
         &self,
         pending: &mut Vec<(Message, PublisherConfirm)>,
@@ -242,11 +249,12 @@ impl RabbitMQPublisher {
         let mut returned: Option<BasicReturnMessage> = None;
         let mut returned_count = 0u64;
         let mut nacked = 0u64;
+        let mut acked: Vec<Message> = Vec::new();
         let mut iter = std::mem::take(pending).into_iter();
 
         while let Some((message, mut confirm)) = iter.next() {
             match self.await_confirm(&mut confirm, connection).await {
-                Ok(Confirmation::Ack(None)) => self.stats.increment_acked(),
+                Ok(Confirmation::Ack(None)) => acked.push(message),
                 Ok(Confirmation::Ack(Some(ret)) | Confirmation::Nack(Some(ret))) => {
                     self.stats.increment_returned();
                     returned_count += 1;
@@ -260,12 +268,27 @@ impl RabbitMQPublisher {
                 }
                 Err(e) => {
                     tracing::warn!("Confirm failed: {:#}, reconnecting...", e);
-                    self.stats.requeue_unconfirmed(1);
-                    unsent.push(message);
+                    // The batch's returns are now unknowable: its acks are unproven too.
+                    acked.push(message);
+                    self.stats.requeue_unconfirmed(acked.len() as u64);
+                    unsent.append(&mut acked);
                     pending.extend(iter);
                     return DrainOutcome::ConnectionFailed;
                 }
             }
+        }
+
+        if returned_count > 0 && !acked.is_empty() {
+            tracing::warn!(
+                "Re-publishing {} acked message(s) from a batch with unroutable returns: \
+                 the client cannot tell which ack hid a return (possible duplicates)",
+                acked.len()
+            );
+            self.stats.requeue_unconfirmed(acked.len() as u64);
+            unsent.append(&mut acked);
+        }
+        for _ in acked {
+            self.stats.increment_acked();
         }
 
         if let Some(ret) = returned {
