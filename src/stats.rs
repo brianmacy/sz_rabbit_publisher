@@ -7,8 +7,17 @@ pub struct Stats {
     pub total_records: u64,
     pub acked: u64,
     pub nacked: u64,
+    /// Publishes the broker returned as unroutable (no bound queue); retried,
+    /// never counted as acked.
+    pub returned: u64,
+    /// Messages re-published after a connection failure left their confirm
+    /// unknown. Each may be a duplicate in the queue (at-least-once delivery).
+    pub republished: u64,
     pub throttled: u64,
     pub pending: u64,
+    /// Leading records (file order, this run) that are ALL confirmed. A resume
+    /// may safely skip `skip_lines + confirmed_prefix` records.
+    pub confirmed_prefix: u64,
     pub start_time: Option<Instant>,
     /// Tracks the last progress report for interval rate calculation
     last_report_time: Option<Instant>,
@@ -55,8 +64,15 @@ impl Stats {
     pub fn progress_report(&mut self) -> String {
         let rate = self.interval_rate();
         let report = format!(
-            "Progress: total={}, acked={}, nacked={}, pending={}, throttled={}, rate={:.2} msg/s",
-            self.total_records, self.acked, self.nacked, self.pending, self.throttled, rate
+            "Progress: total={}, acked={}, nacked={}, returned={}, republished={}, pending={}, throttled={}, rate={:.2} msg/s",
+            self.total_records,
+            self.acked,
+            self.nacked,
+            self.returned,
+            self.republished,
+            self.pending,
+            self.throttled,
+            rate
         );
         self.last_report_time = Some(Instant::now());
         self.last_report_acked = self.acked;
@@ -70,8 +86,11 @@ impl Stats {
             total_records: self.total_records + other.total_records,
             acked: self.acked + other.acked,
             nacked: self.nacked + other.nacked,
+            returned: self.returned + other.returned,
+            republished: self.republished + other.republished,
             throttled: self.throttled + other.throttled,
             pending: self.pending + other.pending,
+            confirmed_prefix: self.confirmed_prefix + other.confirmed_prefix,
             start_time: match (self.start_time, other.start_time) {
                 (Some(a), Some(b)) => Some(if a < b { a } else { b }),
                 (a, None) => a,
@@ -88,7 +107,9 @@ impl Stats {
             "Final Summary:\n\
              Total records: {}\n\
              Acknowledged: {}\n\
-             Not acknowledged: {}\n\
+             Nack retries: {}\n\
+             Returned unroutable: {}\n\
+             Republished (possible duplicates): {}\n\
              Throttled: {}\n\
              Pending: {}\n\
              Elapsed time: {:.2}s\n\
@@ -96,6 +117,8 @@ impl Stats {
             self.total_records,
             self.acked,
             self.nacked,
+            self.returned,
+            self.republished,
             self.throttled,
             self.pending,
             elapsed.as_secs_f64(),
@@ -159,6 +182,25 @@ impl StatsTracker {
         if stats.pending > 0 {
             stats.pending -= 1;
         }
+    }
+
+    pub fn increment_returned(&self) {
+        let mut stats = self.stats.lock().unwrap();
+        stats.returned += 1;
+        stats.pending = stats.pending.saturating_sub(1);
+    }
+
+    /// `n` published messages whose delivery is unproven (a connection failure,
+    /// or an ack in a batch with unroutable returns) are being re-published:
+    /// they leave `pending` and count as `republished`.
+    pub fn requeue_unconfirmed(&self, n: u64) {
+        let mut stats = self.stats.lock().unwrap();
+        stats.republished += n;
+        stats.pending = stats.pending.saturating_sub(n);
+    }
+
+    pub fn set_confirmed_prefix(&self, n: u64) {
+        self.stats.lock().unwrap().confirmed_prefix = n;
     }
 
     pub fn increment_throttled(&self) {
@@ -235,6 +277,25 @@ mod tests {
     }
 
     #[test]
+    fn test_stats_tracker_returned_and_republished() {
+        let tracker = StatsTracker::new(10000);
+        tracker.increment_pending();
+        tracker.increment_pending();
+        tracker.increment_pending();
+        tracker.increment_returned();
+        tracker.requeue_unconfirmed(2);
+
+        let snapshot = tracker.get_snapshot();
+        assert_eq!(snapshot.returned, 1);
+        assert_eq!(snapshot.republished, 2);
+        assert_eq!(snapshot.acked, 0, "returned/republished are never acks");
+        assert_eq!(snapshot.pending, 0);
+        let summary = snapshot.final_summary();
+        assert!(summary.contains("Returned unroutable: 1"));
+        assert!(summary.contains("Republished (possible duplicates): 2"));
+    }
+
+    #[test]
     fn test_stats_tracker_throttled() {
         let tracker = StatsTracker::new(10000);
 
@@ -262,7 +323,10 @@ mod tests {
             total_records: 100,
             acked: 95,
             nacked: 5,
+            returned: 0,
+            republished: 0,
             pending: 10,
+            confirmed_prefix: 0,
             throttled: 2,
             start_time: Some(Instant::now()),
             last_report_time: None,
@@ -283,7 +347,10 @@ mod tests {
             total_records: 1000,
             acked: 990,
             nacked: 10,
+            returned: 0,
+            republished: 0,
             pending: 0,
+            confirmed_prefix: 0,
             throttled: 5,
             start_time: Some(Instant::now()),
             last_report_time: None,
@@ -293,7 +360,7 @@ mod tests {
         let summary = stats.final_summary();
         assert!(summary.contains("Total records: 1000"));
         assert!(summary.contains("Acknowledged: 990"));
-        assert!(summary.contains("Not acknowledged: 10"));
+        assert!(summary.contains("Nack retries: 10"));
         assert!(summary.contains("Throttled: 5"));
     }
 
@@ -303,8 +370,11 @@ mod tests {
             total_records: 100,
             acked: 90,
             nacked: 5,
+            returned: 0,
+            republished: 0,
             throttled: 2,
             pending: 0,
+            confirmed_prefix: 0,
             start_time: Some(Instant::now()),
             last_report_time: None,
             last_report_acked: 0,
@@ -313,8 +383,11 @@ mod tests {
             total_records: 200,
             acked: 190,
             nacked: 8,
+            returned: 0,
+            republished: 0,
             throttled: 1,
             pending: 0,
+            confirmed_prefix: 0,
             start_time: Some(Instant::now()),
             last_report_time: None,
             last_report_acked: 0,
@@ -336,8 +409,11 @@ mod tests {
             total_records: 0,
             acked: 0,
             nacked: 0,
+            returned: 0,
+            republished: 0,
             throttled: 0,
             pending: 0,
+            confirmed_prefix: 0,
             start_time: Some(now),
             last_report_time: None,
             last_report_acked: 0,

@@ -117,8 +117,10 @@ Options:
   -p, --parallel                 Process files in parallel (one connection per file)
   --report-interval <NUM>        Progress report interval (messages)
                                   [default: 10000]
-  --retry-delay <SECS>           Retry delay on nack (seconds)
+  --retry-delay <SECS>           Retry delay on nack/unroutable/reconnect (seconds)
                                   [default: 3]
+  --skip-lines <N>               Skip (do NOT publish) the first N records, to resume
+                                  [env: SENZING_SKIP_LINES] [default: 0]
   -v, --verbose                  Enable verbose logging
   -h, --help                     Print help
   -V, --version                  Print version
@@ -154,13 +156,41 @@ The publisher implements proper back pressure to prevent overwhelming RabbitMQ:
 3. **Natural Flow Control**: System self-regulates based on RabbitMQ's processing capacity
 4. **Memory Safety**: Prevents memory exhaustion on large files
 
-### Delivery Guarantees
+### Delivery Guarantees ("never drop a record")
 
-- **Publisher Confirms**: Each confirm is individually verified (ack/nack)
-- **Automatic Retry**: Nacked messages are retried forever with configurable delay
-- **Automatic Reconnection**: Connection drops trigger reconnect; unconfirmed messages re-published
-- **Persistent Messages**: All messages published with delivery_mode=2 (persistent)
-- **Graceful Shutdown**: Waits for all confirmations before exiting
+A run exits 0 only if **every record read was confirmed by the broker and routed
+to a queue**. Delivery is at-least-once: records re-sent after a connection
+failure may be duplicated (reported as `republished`), never lost.
+
+- **Publisher Confirms**: every publish is individually confirmed (ack/nack)
+- **Mandatory publishing**: a message the broker cannot route (exchange has no
+  binding for the routing key) is *returned*, logged as an ERROR, counted as
+  `returned` (never as acked) and retried every `--retry-delay` until a binding
+  exists. Without `mandatory` the broker acks and silently discards it. The
+  client library cannot always tell which ack a return belongs to, so every
+  acked message in a confirm batch that had a return is re-published too
+  (possible duplicates, counted `republished`).
+- **Nacks** (e.g. `x-max-length` + `x-overflow: reject-publish`): logged and
+  retried forever after `--retry-delay`
+- **Resource alarms** (memory/disk → `connection.blocked`): logged; publishing
+  pauses and resumes on `connection.unblocked`; nothing is dropped
+- **Reconnection**: a connection loss or broker restart re-publishes every
+  unconfirmed message; each connect attempt is bounded (15s) so a broker that
+  is mid-restart cannot hang the publisher
+- **Persistent Messages**: `delivery_mode=2` (quorum queues persist regardless)
+- **Input integrity**: multi-member gzip and concatenated bzip2 are fully
+  decoded; a line that is not UTF-8 is published verbatim; a genuine read or
+  decompression error (e.g. truncated `.gz`) fails the run non-zero, after
+  confirming everything read, with the exact `--skip-lines` resume point
+- **Stop signals**: SIGINT/SIGTERM print the summary and the exact resume point
+  (`--skip-lines N`: all records before N are confirmed) and exit 130/143
+
+`--skip-lines N` skips N records **without publishing them**. Over-skipping
+loses data; only use a value the publisher printed as a resume point.
+
+What the publisher cannot see: a queue with `x-overflow: drop-head` (or a
+`x-message-ttl`) acks a publish and later discards messages by policy; use
+`reject-publish` if every record must be kept.
 
 ## Development
 
@@ -193,6 +223,24 @@ docker-compose -f docker-compose.test.yml down
 ```
 
 The Docker Compose setup automatically creates all necessary exchanges, queues, and bindings defined in `test-config/rabbitmq-definitions.json`.
+
+#### Back-pressure / no-drop tests (Docker required)
+
+`tests/backpressure_test.rs` starts a throwaway RabbitMQ container per test and
+proves no record is lost under: queue overflow with `reject-publish` and a slow
+consumer, a memory alarm mid-publish, killed connections plus a broker
+`stop_app`/`start_app`, a missing binding (unroutable), routable and unroutable
+publishes mixed in one confirm batch (binding flipped mid-run), a truncated gzip, a
+non-UTF-8 line, a multi-member gzip, and SIGTERM with resume. Each test drains
+the queue and checks every record id.
+
+```bash
+cargo test --test backpressure_test -- --ignored                       # rabbitmq:4.3-management, quorum (default)
+TEST_QUEUE_TYPE=classic cargo test --test backpressure_test -- --ignored
+TEST_RABBITMQ_IMAGE=rabbitmq:3-management cargo test --test backpressure_test -- --ignored
+```
+
+They are `#[ignore]`d in a plain `cargo test`; when run, missing Docker is a failure.
 
 ### Code Quality
 

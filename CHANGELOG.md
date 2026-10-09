@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — "never drop a record"
+
+Each item has a real-broker test in `tests/backpressure_test.rs` that fails on
+the previous release.
+
+- Unroutable messages were acked by the broker and silently discarded while
+  counted as `acked` (`mandatory=false`). Publishes are now `mandatory`; a
+  returned message is counted as `returned`, logged as an ERROR and retried
+  until a binding exists.
+- A confirm failure dropped the rest of the in-flight batch (`break` out of
+  `pending.drain(..)` discarded it): records were lost on a connection kill and
+  the run still exited 0. Every unconfirmed message is now re-published.
+- Reconnect could hang forever when the broker was mid-restart (a connect
+  attempt never completed). Connect and close attempts are now bounded (15s).
+- Multi-member gzip input (`cat a.gz b.gz`, pigz, bgzip) stopped silently after
+  the first member. Now decoded with `MultiGzDecoder`.
+- A non-UTF-8 line, or any read error, ended the read with only an ERROR log and
+  exit 0, dropping the rest of the file. Lines are now read as bytes (non-UTF-8
+  lines are published verbatim); a genuine read/decompression error fails the
+  run non-zero with the exact `--skip-lines` resume point.
+- The run now fails non-zero unless `acked == total` records read.
+- `--skip-lines` docs claimed over-skipping was safe; it loses every record
+  never sent. Docs corrected and a warning is logged when skipping.
+- `pending` no longer stays above 0 after a connection failure.
+- An unroutable record could still be counted as acked and lost when a confirm
+  batch mixed routable and unroutable publishes: lapin 4.10 attaches a
+  `basic.return` to an arbitrary tag of a coalesced `basic.ack multiple=true`
+  (`complete_pending_before` iterates a `HashMap`), so the really-returned
+  message surfaced as a plain ack. Any batch with a return now re-publishes all
+  of its acked messages (possible duplicates, counted `republished`).
+- `--skip-lines` resume hint on a stop signal in multi-file mode now says to
+  resume the file on its own (`--skip-lines` is rejected with several files).
+- Records ending in several `\r`s before `\n` keep stripping ALL trailing `\r`
+  (byte-reader regression restored to the pre-change behaviour).
+
+### Security
+
+- `rustls` 0.23.41 -> 0.23.45 (RUSTSEC-2026-0285); yanked `chacha20` 0.10.1 ->
+  0.10.2 and `spin` 0.9.8 -> 0.9.9. MSRV stays 1.88. `cargo deny` advisories
+  clean; unused license allowances dropped.
+
+### Added
+
+- `returned` and `republished` (possible duplicates) stats; nacks are logged.
+- `connection.blocked` / `connection.unblocked` (resource alarms) are logged,
+  plus a periodic warning while a confirm is withheld.
+- SIGINT/SIGTERM print the summary and the exact resume point (`--skip-lines`)
+  and exit 130/143.
+- `tests/backpressure_test.rs` (Docker, `--ignored`; `rabbitmq:4.3-management`
+  and quorum queues by default) and a CI job running it on RabbitMQ 4.3 for
+  quorum and classic queues.
+
+### Changed
+
+- "Not acknowledged" in the summary is renamed "Nack retries" (it counts every
+  retry, not distinct records).
+
 ## [0.5.0] - 2026-07-22
 
 ### Added
@@ -15,8 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before publishing, to resume an interrupted single-file load. Compressed inputs
   (gzip/bzip2) have no seek, so the skipped prefix is decoded and discarded. Rejected
   loudly with more than one input file (per-file skipping would silently drop records).
-  Safe by idempotency: the engine's `add_record` treats a re-published record as an
-  update, so over-skipping never loses data and under-skipping only re-sends a few.
+  (Corrected in Unreleased: over-skipping LOSES records; only under-skipping is safe.)
 
 ### Security
 
