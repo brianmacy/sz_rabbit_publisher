@@ -88,7 +88,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       rabbitmq:
-        image: rabbitmq:3-management
+        # AWS ECR Public mirror of the Docker Official Image: Docker Hub's
+        # unauthenticated pull rate limit fails shared GitHub runners.
+        image: public.ecr.aws/docker/library/rabbitmq:3-management
         ports:
           - 5672:5672
           - 15672:15672
@@ -129,10 +131,22 @@ jobs:
 
       # Each test starts its own RabbitMQ container (alarms, restarts), so this
       # needs only the runner's Docker. Missing Docker FAILS the job.
+      # Pull once up front (from the ECR Public mirror, which has no Docker Hub
+      # rate limit) so the parallel tests don't each race to pull it.
+      - name: Pull RabbitMQ image
+        run: |
+          for i in 1 2 3 4 5; do
+            docker pull "$TEST_RABBITMQ_IMAGE" && exit 0
+            sleep $((i * 10))
+          done
+          exit 1
+        env:
+          TEST_RABBITMQ_IMAGE: public.ecr.aws/docker/library/rabbitmq:4.3-management
+
       - name: Run back-pressure tests
         env:
           TEST_QUEUE_TYPE: ${{ matrix.queue_type }}
-          TEST_RABBITMQ_IMAGE: rabbitmq:4.3-management
+          TEST_RABBITMQ_IMAGE: public.ecr.aws/docker/library/rabbitmq:4.3-management
         run: cargo test --test backpressure_test -- --ignored
 
   build:
