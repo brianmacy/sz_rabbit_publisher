@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use bzip2::read::MultiBzDecoder;
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use tokio::fs::File;
@@ -39,13 +39,16 @@ pub async fn is_bz2_file<P: AsRef<Path>>(path: P) -> Result<bool> {
 }
 
 /// Active reader variant — plain text, gzip-, or bzip2-compressed.
+/// `Gzip` uses `MultiGzDecoder` so multi-member gzip files (`cat a.gz b.gz`,
+/// `pigz`, `bgzip`) are fully decoded; a single-member decoder silently stops
+/// at the end of the first member, dropping the rest of the file.
 /// `Bz2` uses `MultiBzDecoder` so concatenated bzip2 streams (e.g. files
 /// produced by `pbzip2`/`lbzip2`) are fully decoded, not just the first stream.
 /// Decode is single-threaded per file; concurrency across multiple files comes
 /// from `--parallel`.
 enum LineReader {
     Plain(BufReader<std::fs::File>),
-    Gzip(BufReader<GzDecoder<std::fs::File>>),
+    Gzip(BufReader<MultiGzDecoder<std::fs::File>>),
     Bz2(BufReader<MultiBzDecoder<std::fs::File>>),
 }
 
@@ -63,7 +66,7 @@ impl FileReader {
 
         let reader = if is_gzip_file(path).await? {
             let file = std::fs::File::open(path).context("Failed to open gzip file")?;
-            LineReader::Gzip(BufReader::new(GzDecoder::new(file)))
+            LineReader::Gzip(BufReader::new(MultiGzDecoder::new(file)))
         } else if is_bz2_file(path).await? {
             let file = std::fs::File::open(path).context("Failed to open bzip2 file")?;
             LineReader::Bz2(BufReader::new(MultiBzDecoder::new(file)))
@@ -78,32 +81,43 @@ impl FileReader {
         })
     }
 
-    /// Returns the next non-empty line from the file, or `None` at EOF.
-    /// I/O errors are propagated via `Result`.
-    pub fn next_line(&mut self) -> Option<Result<String>> {
-        let mut buf = String::new();
-        loop {
-            buf.clear();
-            let bytes = match &mut self.reader {
-                LineReader::Plain(r) => r.read_line(&mut buf),
-                LineReader::Gzip(r) => r.read_line(&mut buf),
-                LineReader::Bz2(r) => r.read_line(&mut buf),
-            };
+    /// Reads one raw line (including its terminator) into `buf`. Returns the
+    /// byte count; `0` means EOF.
+    fn read_raw_line(&mut self, buf: &mut Vec<u8>) -> std::io::Result<usize> {
+        buf.clear();
+        match &mut self.reader {
+            LineReader::Plain(r) => r.read_until(b'\n', buf),
+            LineReader::Gzip(r) => r.read_until(b'\n', buf),
+            LineReader::Bz2(r) => r.read_until(b'\n', buf),
+        }
+    }
 
-            match bytes {
+    /// Returns the next non-empty line from the file as raw bytes, or `None` at
+    /// EOF. Lines are NOT required to be UTF-8: the publisher is a transport and
+    /// must never drop a record, so a line with invalid UTF-8 is published
+    /// verbatim (the consumer decides whether to reject it). Only genuine I/O or
+    /// decompression errors (e.g. a truncated gzip) are returned as `Err`; the
+    /// caller must treat those as fatal, because every record after the error is
+    /// unreadable.
+    pub fn next_line(&mut self) -> Option<Result<Vec<u8>>> {
+        let mut buf = Vec::new();
+        loop {
+            match self.read_raw_line(&mut buf) {
                 Ok(0) => return None, // EOF
                 Ok(_) => {
-                    let trimmed = buf.trim_end_matches('\n').trim_end_matches('\r');
-                    if trimmed.is_empty() {
+                    let len = trimmed_len(&buf);
+                    if len == 0 {
                         continue; // skip empty lines
                     }
+                    buf.truncate(len);
                     self.lines_read += 1;
-                    return Some(Ok(trimmed.to_string()));
+                    return Some(Ok(buf));
                 }
                 Err(e) => {
-                    return Some(Err(
-                        anyhow::Error::new(e).context("Failed to read line from file")
-                    ));
+                    return Some(Err(anyhow::Error::new(e).context(format!(
+                        "Failed to read record {} from file",
+                        self.lines_read + 1
+                    ))));
                 }
             }
         }
@@ -116,23 +130,17 @@ impl FileReader {
     /// stream. Returns the number actually skipped (fewer than `n` only if EOF is
     /// reached first). Does not affect `lines_read` (which counts this run's reads).
     ///
-    /// Over- or under-skipping is safe: the engine's `add_record` is idempotent,
-    /// so any re-published record is an update, not a duplicate.
+    /// Skipped records are NOT published. Over-skipping loses records; only
+    /// under-skipping is safe (re-sent records are absorbed by the engine's
+    /// idempotent `add_record`).
     pub fn skip(&mut self, n: u64) -> Result<u64> {
         let mut skipped = 0u64;
-        let mut buf = String::new();
+        let mut buf = Vec::new();
         while skipped < n {
-            buf.clear();
-            let bytes = match &mut self.reader {
-                LineReader::Plain(r) => r.read_line(&mut buf),
-                LineReader::Gzip(r) => r.read_line(&mut buf),
-                LineReader::Bz2(r) => r.read_line(&mut buf),
-            };
-            match bytes {
+            match self.read_raw_line(&mut buf) {
                 Ok(0) => break, // EOF before N — caller sees fewer skipped
                 Ok(_) => {
-                    let trimmed = buf.trim_end_matches('\n').trim_end_matches('\r');
-                    if trimmed.is_empty() {
+                    if trimmed_len(&buf) == 0 {
                         continue; // empty lines are not records (mirrors next_line)
                     }
                     skipped += 1;
@@ -151,6 +159,18 @@ impl FileReader {
     }
 }
 
+/// Length of `line` without its trailing `\n` / `\r\n` terminator.
+fn trimmed_len(line: &[u8]) -> usize {
+    let mut len = line.len();
+    if len > 0 && line[len - 1] == b'\n' {
+        len -= 1;
+    }
+    if len > 0 && line[len - 1] == b'\r' {
+        len -= 1;
+    }
+    len
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,9 +187,9 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
 
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line1");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line2");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line3");
         assert!(reader.next_line().is_none());
         assert_eq!(reader.lines_read(), 3);
     }
@@ -184,8 +204,8 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
 
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line1");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line2");
         assert!(reader.next_line().is_none());
         assert_eq!(reader.lines_read(), 2);
     }
@@ -210,9 +230,9 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
 
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line1");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line2");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line3");
         assert!(reader.next_line().is_none());
         assert_eq!(reader.lines_read(), 3);
     }
@@ -237,9 +257,9 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
 
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line1");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line2");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line3");
         assert!(reader.next_line().is_none());
         assert_eq!(reader.lines_read(), 3);
     }
@@ -266,10 +286,10 @@ mod tests {
         temp_file.flush().unwrap();
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
-        assert_eq!(reader.next_line().unwrap().unwrap(), "a1");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "a2");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "b1");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "b2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"a1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"a2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"b1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"b2");
         assert!(reader.next_line().is_none());
         assert_eq!(reader.lines_read(), 4);
     }
@@ -355,9 +375,9 @@ mod tests {
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
         assert_eq!(reader.skip(2).unwrap(), 2);
         // First record after skipping the first two is line3.
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line3");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line4");
-        assert_eq!(reader.next_line().unwrap().unwrap(), "line5");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line3");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line4");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line5");
         assert!(reader.next_line().is_none());
         // lines_read counts only this run's reads (post-skip), not skipped records.
         assert_eq!(reader.lines_read(), 3);
@@ -376,7 +396,7 @@ mod tests {
 
         let mut reader = FileReader::open(temp_file.path()).await.unwrap();
         assert_eq!(reader.skip(2).unwrap(), 2);
-        assert_eq!(reader.next_line().unwrap().unwrap(), "rec3");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"rec3");
     }
 
     #[tokio::test]
@@ -390,5 +410,98 @@ mod tests {
         // Asking to skip more than exist stops at EOF and reports the real count.
         assert_eq!(reader.skip(10).unwrap(), 2);
         assert!(reader.next_line().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_invalid_utf8_line_is_returned_verbatim() {
+        // A non-UTF-8 line must not end the read (that would silently drop every
+        // record after it). It is returned byte-for-byte and reading continues.
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "before").unwrap();
+        temp_file.write_all(b"{\"bad\":\"\xff\xfe\"}\r\n").unwrap();
+        writeln!(temp_file, "after").unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"before");
+        assert_eq!(
+            reader.next_line().unwrap().unwrap(),
+            b"{\"bad\":\"\xff\xfe\"}".to_vec()
+        );
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"after");
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_skip_over_invalid_utf8() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(b"\xff\n").unwrap();
+        writeln!(temp_file, "next").unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        assert_eq!(reader.skip(1).unwrap(), 1);
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"next");
+    }
+
+    #[tokio::test]
+    async fn test_truncated_gzip_is_an_error() {
+        // A truncated/corrupt compressed file must surface as Err (never a quiet
+        // EOF), because every record after the corruption is unreadable.
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        for i in 0..5000 {
+            writeln!(encoder, "{{\"id\":{i},\"pad\":\"{i:0>64}\"}}").unwrap();
+        }
+        let compressed = encoder.finish().unwrap();
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file
+            .write_all(&compressed[..compressed.len() / 2])
+            .unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        let mut ok = 0u64;
+        let err = loop {
+            match reader.next_line() {
+                Some(Ok(_)) => ok += 1,
+                Some(Err(e)) => break e,
+                None => panic!("truncated gzip reached a clean EOF after {ok} records"),
+            }
+        };
+        assert!(ok > 0 && ok < 5000, "read {ok} records before the error");
+        assert!(
+            format!("{err:#}").contains(&format!("record {}", ok + 1)),
+            "error must name the failing record: {err:#}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_gzip_multi_member() {
+        // Concatenated gzip members (cat a.gz b.gz, pigz, bgzip) must ALL be read.
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+
+        let member = |lines: &[&str]| {
+            let mut enc = GzEncoder::new(Vec::new(), Compression::default());
+            for l in lines {
+                writeln!(enc, "{l}").unwrap();
+            }
+            enc.finish().unwrap()
+        };
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(&member(&["a1", "a2"])).unwrap();
+        temp_file.write_all(&member(&["b1", "b2"])).unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        for want in ["a1", "a2", "b1", "b2"] {
+            assert_eq!(reader.next_line().unwrap().unwrap(), want.as_bytes());
+        }
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 4);
     }
 }

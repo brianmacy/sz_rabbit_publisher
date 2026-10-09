@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 use sz_rabbit_publisher::{PublisherConfig, RabbitMQPublisher, Stats};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -19,11 +20,16 @@ multiple files.
 
 Progress output fields:
   total      Lines read from input file
-  acked      Messages confirmed by broker (only genuine acks count)
-  nacked     Broker rejections (messages are retried forever)
+  acked      Messages confirmed by broker AND routed to a queue
+  nacked     Broker rejections (each retry counts; retried forever)
+  returned   Unroutable returns (no bound queue; retried forever, never acked)
+  republished  Re-sent after a connection failure (possible duplicates)
   pending    Messages published but not yet confirmed
   throttled  Times the reader blocked waiting for publish capacity
-  rate       Confirmed messages per second (interval rate, not cumulative)"
+  rate       Confirmed messages per second (interval rate, not cumulative)
+
+Exit status is non-zero unless every record read was confirmed. On SIGINT/
+SIGTERM the summary prints the exact --skip-lines resume point."
 )]
 struct Args {
     /// One or more JSONL files (plain text, gzip, or bzip2 — auto-detected)
@@ -78,12 +84,14 @@ struct Args {
     #[arg(long = "retry-delay", default_value = "3")]
     retry_delay: u64,
 
-    /// Skip the first N non-empty records before publishing, to resume an
+    /// Skip the first N non-empty records WITHOUT publishing them, to resume an
     /// interrupted load. Single-file input only. Compressed inputs have no seek,
-    /// so the skipped prefix is decoded and discarded. Re-publishing is safe:
-    /// the engine's add_record is idempotent, so any overlap is an update, not a
-    /// duplicate — over-skipping never loses data, under-skipping just re-sends a
-    /// few records. To resume, pass the cumulative record count already published.
+    /// so the skipped prefix is decoded and discarded.
+    /// WARNING: skipped records are never sent by this run. Over-skipping LOSES
+    /// every record between the true resume point and N. Only pass a count that
+    /// a previous run reported as confirmed (its "resume with --skip-lines N"
+    /// message); under-skipping is the safe direction (re-sent records are
+    /// duplicates, which the engine's idempotent add_record absorbs).
     #[arg(long = "skip-lines", env = "SENZING_SKIP_LINES", default_value = "0")]
     skip_lines: u64,
 
@@ -147,91 +155,145 @@ async fn main() -> Result<()> {
     };
 
     let multi_file = args.input_files.len() > 1;
+    // One publisher per file, created up front so a stop signal can report
+    // exactly what each one confirmed.
+    let mut jobs: Vec<(PathBuf, Arc<RabbitMQPublisher>)> = Vec::new();
+    for path in args.input_files {
+        let publisher = RabbitMQPublisher::new(config.clone());
+        if multi_file {
+            let label = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| path.display().to_string());
+            publisher.stats_label(&label);
+        }
+        jobs.push((path, Arc::new(publisher)));
+    }
 
-    let file_stats: Vec<Stats> = if args.parallel {
-        // One task per file, each with its own publisher and AMQP connection
-        let mut join_set = tokio::task::JoinSet::new();
-        for path in args.input_files {
-            let cfg = config.clone();
-            join_set.spawn(async move {
-                let path_str = path.to_str().context("Invalid file path encoding")?;
-                let publisher = RabbitMQPublisher::new(cfg);
-                if multi_file {
-                    let label = path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or(path_str);
-                    publisher.stats_label(label);
-                }
-                publisher
-                    .publish_file(path_str)
-                    .await
-                    .with_context(|| format!("Failed to publish file: {}", path.display()))
-            });
+    let file_stats = tokio::select! {
+        res = run_jobs(&jobs, args.parallel) => res?,
+        (name, code) = stop_signal() => {
+            report_interrupted(&jobs, name);
+            std::process::exit(code);
         }
-        let mut results = Vec::new();
-        let mut first_error: Option<anyhow::Error> = None;
-        while let Some(res) = join_set.join_next().await {
-            match res.context("Publisher task panicked").and_then(|r| r) {
-                Ok(stats) => results.push(stats),
-                Err(e) => {
-                    tracing::error!("{:#}", e);
-                    if first_error.is_none() {
-                        first_error = Some(e);
-                    }
-                }
-            }
-        }
-        // Print partial summary before propagating the error
-        if let Some(err) = first_error {
-            if !results.is_empty() {
-                let overall = results
-                    .iter()
-                    .skip(1)
-                    .fold(results[0].clone(), |acc, s| acc.merge(s));
-                println!(
-                    "\n=== Partial Summary ({} of {} files completed) ===",
-                    results.len(),
-                    results.len() + 1
-                );
-                println!("{}", overall.final_summary());
-            }
-            return Err(err);
-        }
-        results
-    } else {
-        // Sequential: fresh publisher per file for clean per-file stats
-        let mut results = Vec::new();
-        for path in &args.input_files {
-            let path_str = path.to_str().context("Invalid file path encoding")?;
-            let publisher = RabbitMQPublisher::new(config.clone());
-            if multi_file {
-                let label = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or(path_str);
-                publisher.stats_label(label);
-            }
-            let stats = publisher
-                .publish_file(path_str)
-                .await
-                .with_context(|| format!("Failed to publish file: {}", path.display()))?;
-            results.push(stats);
-        }
-        results
     };
 
     // Overall summary when multiple files were processed
     if file_stats.len() > 1 {
-        let overall = file_stats
-            .iter()
-            .skip(1)
-            .fold(file_stats[0].clone(), |acc, s| acc.merge(s));
         println!("\n=== Overall Summary ({} files) ===", file_stats.len());
-        println!("{}", overall.final_summary());
+        println!("{}", merge_all(&file_stats).final_summary());
     }
 
     Ok(())
+}
+
+async fn publish_one_file(path: &Path, publisher: &RabbitMQPublisher) -> Result<Stats> {
+    let path_str = path.to_str().context("Invalid file path encoding")?;
+    publisher
+        .publish_file(path_str)
+        .await
+        .with_context(|| format!("Failed to publish file: {}", path.display()))
+}
+
+fn merge_all(stats: &[Stats]) -> Stats {
+    stats
+        .iter()
+        .skip(1)
+        .fold(stats[0].clone(), |acc, s| acc.merge(s))
+}
+
+/// Publish every file (sequentially, or concurrently with `--parallel`).
+async fn run_jobs(
+    jobs: &[(PathBuf, Arc<RabbitMQPublisher>)],
+    parallel: bool,
+) -> Result<Vec<Stats>> {
+    if !parallel {
+        let mut results = Vec::new();
+        for (path, publisher) in jobs {
+            results.push(publish_one_file(path, publisher).await?);
+        }
+        return Ok(results);
+    }
+
+    // One task per file, each with its own AMQP connection
+    let mut join_set = tokio::task::JoinSet::new();
+    for (path, publisher) in jobs {
+        let (path, publisher) = (path.clone(), publisher.clone());
+        join_set.spawn(async move { publish_one_file(&path, &publisher).await });
+    }
+    let mut results = Vec::new();
+    let mut first_error: Option<anyhow::Error> = None;
+    while let Some(res) = join_set.join_next().await {
+        match res.context("Publisher task panicked").and_then(|r| r) {
+            Ok(stats) => results.push(stats),
+            Err(e) => {
+                tracing::error!("{:#}", e);
+                first_error.get_or_insert(e);
+            }
+        }
+    }
+    // Print partial summary before propagating the error
+    if let Some(err) = first_error {
+        if !results.is_empty() {
+            println!(
+                "\n=== Partial Summary ({} of {} files completed) ===",
+                results.len(),
+                jobs.len()
+            );
+            println!("{}", merge_all(&results).final_summary());
+        }
+        return Err(err);
+    }
+    Ok(results)
+}
+
+/// Resolves on SIGINT (Ctrl-C) or, on Unix, SIGTERM; yields (name, exit code).
+async fn stop_signal() -> (&'static str, i32) {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        match signal(SignalKind::terminate()) {
+            Ok(mut term) => tokio::select! {
+                _ = tokio::signal::ctrl_c() => ("SIGINT", 130),
+                _ = term.recv() => ("SIGTERM", 143),
+            },
+            Err(e) => {
+                tracing::warn!("Cannot install SIGTERM handler: {e}");
+                let _ = tokio::signal::ctrl_c().await;
+                ("SIGINT", 130)
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+        ("SIGINT", 130)
+    }
+}
+
+/// On a stop signal: print each file's stats and the exact resume point.
+fn report_interrupted(jobs: &[(PathBuf, Arc<RabbitMQPublisher>)], signal: &str) {
+    eprintln!("\n=== INTERRUPTED by {signal}: publishing did NOT complete ===");
+    for (path, publisher) in jobs {
+        let stats = publisher.stats();
+        println!("\n[{}] {}", path.display(), stats.final_summary());
+        println!("{}", interrupted_line(&stats, publisher.skip_lines()));
+    }
+}
+
+fn interrupted_line(stats: &Stats, skip_lines: u64) -> String {
+    if stats.total_records == 0 {
+        return "Not started: re-run this file from the beginning".to_string();
+    }
+    format!(
+        "INTERRUPTED: {} of {} records read were confirmed; the first {} are all confirmed. \
+         Resume this file with --skip-lines {}",
+        stats.acked,
+        stats.total_records,
+        stats.confirmed_prefix,
+        skip_lines + stats.confirmed_prefix
+    )
 }
 
 #[cfg(test)]
@@ -291,5 +353,17 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.skip_lines, 6_420_000);
+    }
+
+    #[test]
+    fn test_interrupted_line_reports_resume_point() {
+        let mut stats = Stats::default();
+        stats.total_records = 100;
+        stats.acked = 90;
+        stats.confirmed_prefix = 85;
+        let line = interrupted_line(&stats, 1000);
+        assert!(line.contains("90 of 100"), "{line}");
+        assert!(line.contains("--skip-lines 1085"), "{line}");
+        assert!(interrupted_line(&Stats::default(), 0).contains("Not started"));
     }
 }

@@ -2140,6 +2140,7 @@ dependencies = [
  "bzip2",
  "clap",
  "flate2",
+ "futures-core",
  "lapin",
  "tempfile",
  "tokio",

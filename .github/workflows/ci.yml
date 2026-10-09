@@ -114,6 +114,26 @@ jobs:
       - name: Run integration tests
         run: cargo test --test integration_test --verbose
 
+  backpressure:
+    name: Back-pressure / no-drop tests (${{ matrix.queue_type }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        queue_type: [quorum, classic]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      # Each test starts its own RabbitMQ container (alarms, restarts), so this
+      # needs only the runner's Docker. Missing Docker FAILS the job.
+      - name: Run back-pressure tests
+        env:
+          TEST_QUEUE_TYPE: ${{ matrix.queue_type }}
+        run: cargo test --test backpressure_test -- --ignored
+
   build:
     name: Build
     runs-on: ${{ matrix.os }}
