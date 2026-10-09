@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-09
+
 ### Fixed — "never drop a record"
 
 Each item has a real-broker test in `tests/backpressure_test.rs` that fails on
