@@ -6,10 +6,18 @@ use std::time::Duration;
 use sz_rabbit_publisher::{PublisherConfig, RabbitMQPublisher, Stats};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+/// Version reported by `--version`. Release builds set `RELEASE_VERSION` from
+/// the git tag (`v0.6.1` -> `0.6.1`) in `.github/workflows/release.yml`; other
+/// builds fall back to the `Cargo.toml` version.
+const VERSION: &str = match option_env!("RELEASE_VERSION") {
+    Some(v) => v,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
 #[derive(Parser, Debug)]
 #[command(
     name = "sz_rabbit_publisher",
-    version = "0.1.0",
+    version = VERSION,
     about = "High-performance RabbitMQ publisher for JSONL files",
     long_about = None,
     after_help = "\

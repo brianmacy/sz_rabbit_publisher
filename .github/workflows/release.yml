@@ -74,14 +74,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Build release
-        run: cargo build --release --locked --target ${{ matrix.target }} --verbose
+        run: |
+          # --version reports the release tag (v0.6.1 -> 0.6.1); see VERSION in src/main.rs.
+          export RELEASE_VERSION="${TAG#v}"
+          cargo build --release --locked --target ${{ matrix.target }} --verbose
 
       - name: Strip and smoke-test binary
         run: |
           BIN=target/${{ matrix.target }}/release/sz_rabbit_publisher
           strip "$BIN"
           file "$BIN"
-          "$BIN" --version
+          got=$("$BIN" --version)
+          echo "$got"
+          [ "$got" = "sz_rabbit_publisher ${TAG#v}" ] || { echo "version mismatch: want ${TAG#v}"; exit 1; }
 
       - name: Upload release asset
         env:

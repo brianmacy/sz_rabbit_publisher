@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-09
+
+### Fixed
+
+- `--version` reported a hardcoded `0.1.0`. Release builds now report the
+  release tag (set at build time from the tag via `RELEASE_VERSION`; the
+  release workflow fails if `--version` does not match the tag). Other builds
+  report the `Cargo.toml` version, now kept in step (0.6.1).
+
 ### Changed
 
 - Release binaries are published for Linux only: x86_64 and aarch64, each as
