@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-09
+
 ### Added
 
 - `--transient` (env `RABBITMQ_TRANSIENT`): publish `delivery_mode=1` instead of
