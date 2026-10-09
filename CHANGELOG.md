@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Release binaries are published for Linux only (x86_64 glibc and x86_64 musl).
+  The macOS and Windows builds were removed from the release workflow and from
+  the v0.6.0 release. macOS (aarch64) returns once Developer ID signing and
+  notarization are configured.
+
 ## [0.6.0] - 2026-10-09
 
 ### Fixed — "never drop a record"
