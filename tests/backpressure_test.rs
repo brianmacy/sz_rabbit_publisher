@@ -237,6 +237,7 @@ fn config(url: &str, max_pending: usize, retry_delay: Duration) -> PublisherConf
         retry_delay,
         report_interval: 1_000_000,
         skip_lines: 0,
+        persistent: true,
     }
 }
 
@@ -835,5 +836,69 @@ fn send_sigterm(pid: u32) -> Result<()> {
         .args(["-TERM", &pid.to_string()])
         .status()?;
     ensure!(status.success(), "kill -TERM {pid} failed");
+    Ok(())
+}
+
+/// Drain the queue; returns every message's AMQP `delivery-mode` (None = unset).
+async fn drain_delivery_modes(url: &str) -> Result<Vec<Option<u8>>> {
+    let (conn, ch) = open_channel(url).await?;
+    let mut modes = Vec::new();
+    while let Some(msg) = ch
+        .basic_get(QUEUE.into(), BasicGetOptions { no_ack: true })
+        .await?
+    {
+        modes.push(*msg.delivery.properties.delivery_mode());
+    }
+    conn.close(0, "drained".into()).await.ok();
+    Ok(modes)
+}
+
+/// 9. The real binary publishes delivery-mode 2 (persistent) by default and
+///    delivery-mode 1 with `--transient`, every record still confirmed. (On a
+///    quorum queue the broker persists both anyway; the property still travels
+///    with the message, so this checks what the publisher sent.)
+#[tokio::test]
+#[ignore = "needs Docker; run with --ignored"]
+async fn test_transient_flag_sets_delivery_mode() -> Result<()> {
+    const N: u64 = 200;
+    let broker = Broker::start_ready("transient").await?;
+    let url = broker.amqp_url.clone();
+    declare_topology(&url, FieldTable::default(), true).await?;
+    let file = write_records(N)?;
+    let path = file.path().to_str().unwrap();
+    let bin = env!("CARGO_BIN_EXE_sz_rabbit_publisher");
+
+    for (extra, want) in [(None, 2u8), (Some("--transient"), 1u8)] {
+        let mut cmd = Command::new(bin);
+        cmd.env_remove("RABBITMQ_TRANSIENT").args([
+            "-u",
+            &url,
+            "-e",
+            EXCHANGE,
+            "-q",
+            QUEUE,
+            "-r",
+            ROUTING_KEY,
+        ]);
+        cmd.args(extra).arg(path);
+        let out = cmd.output().context("failed to run publisher binary")?;
+        ensure!(
+            out.status.success(),
+            "transient({extra:?}): publisher failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let modes = drain_delivery_modes(&url).await?;
+        ensure!(
+            modes.len() as u64 == N,
+            "transient({extra:?}): expected {N} messages, got {}",
+            modes.len()
+        );
+        let wrong = modes.iter().filter(|m| **m != Some(want)).count();
+        ensure!(
+            wrong == 0,
+            "transient({extra:?}): {wrong} of {N} not delivery-mode {want} (first: {:?})",
+            modes.iter().find(|m| **m != Some(want))
+        );
+    }
     Ok(())
 }

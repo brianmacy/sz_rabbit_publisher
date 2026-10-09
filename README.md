@@ -121,6 +121,9 @@ Options:
                                   [default: 3]
   --skip-lines <N>               Skip (do NOT publish) the first N records, to resume
                                   [env: SENZING_SKIP_LINES] [default: 0]
+  --transient                    Publish delivery-mode 1 instead of persistent (2);
+                                  classic queues only — see below
+                                  [env: RABBITMQ_TRANSIENT]
   -v, --verbose                  Enable verbose logging
   -h, --help                     Print help
   -V, --version                  Print version
@@ -177,7 +180,13 @@ failure may be duplicated (reported as `republished`), never lost.
 - **Reconnection**: a connection loss or broker restart re-publishes every
   unconfirmed message; each connect attempt is bounded (15s) so a broker that
   is mid-restart cannot hang the publisher
-- **Persistent Messages**: `delivery_mode=2` (quorum queues persist regardless)
+- **Persistent Messages**: `delivery_mode=2` by default. `--transient` publishes
+  `delivery_mode=1`, which only matters for **classic** queues: RabbitMQ quorum
+  queues persist every message to disk regardless of delivery mode
+  ([docs](https://www.rabbitmq.com/docs/quorum-queues)), so on a quorum queue the
+  flag saves nothing. On a classic queue it skips the per-message disk write, and
+  **transient messages are LOST if the broker restarts** — use it only for
+  reproducible input. Confirms, returns and retries are identical either way.
 - **Input integrity**: multi-member gzip and concatenated bzip2 are fully
   decoded; a line that is not UTF-8 is published verbatim; a genuine read or
   decompression error (e.g. truncated `.gz`) fails the run non-zero, after
@@ -232,7 +241,8 @@ consumer, a memory alarm mid-publish, killed connections plus a broker
 `stop_app`/`start_app`, a missing binding (unroutable), routable and unroutable
 publishes mixed in one confirm batch (binding flipped mid-run), a truncated gzip, a
 non-UTF-8 line, a multi-member gzip, and SIGTERM with resume. Each test drains
-the queue and checks every record id.
+the queue and checks every record id. A further test runs the real binary and
+checks every message's `delivery_mode` is 2 by default and 1 with `--transient`.
 
 ```bash
 cargo test --test backpressure_test -- --ignored                       # rabbitmq:4.3-management, quorum (default)

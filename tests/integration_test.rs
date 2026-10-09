@@ -156,6 +156,7 @@ async fn test_publish_small_file() -> Result<()> {
         retry_delay: Duration::from_secs(1),
         report_interval: 1,
         skip_lines: 0,
+        persistent: true,
     };
 
     let publisher = RabbitMQPublisher::new(config);
@@ -204,6 +205,7 @@ async fn test_publish_gzip_file() -> Result<()> {
         retry_delay: Duration::from_secs(1),
         report_interval: 1,
         skip_lines: 0,
+        persistent: true,
     };
 
     let publisher = RabbitMQPublisher::new(config);
@@ -246,6 +248,7 @@ async fn test_publish_empty_file() -> Result<()> {
         retry_delay: Duration::from_secs(1),
         report_interval: 1,
         skip_lines: 0,
+        persistent: true,
     };
 
     let publisher = RabbitMQPublisher::new(config);
@@ -293,6 +296,7 @@ async fn test_publish_large_file_with_throttling() -> Result<()> {
         retry_delay: Duration::from_millis(100),
         report_interval: 100,
         skip_lines: 0,
+        persistent: true,
     };
 
     let publisher = RabbitMQPublisher::new(config);
@@ -337,6 +341,7 @@ async fn test_invalid_file_path() -> Result<()> {
         retry_delay: Duration::from_secs(1),
         report_interval: 1,
         skip_lines: 0,
+        persistent: true,
     };
 
     let publisher = RabbitMQPublisher::new(config);

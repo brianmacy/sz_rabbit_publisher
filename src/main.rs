@@ -103,6 +103,25 @@ struct Args {
     #[arg(long = "skip-lines", env = "SENZING_SKIP_LINES", default_value = "0")]
     skip_lines: u64,
 
+    /// Publish transient (delivery-mode 1) instead of persistent (2)
+    ///
+    /// Default is persistent. Persistence means the broker writes every message to
+    /// its message store on publish and reads it back to deliver — on a benchmark
+    /// that is close to pure overhead. Measured on a 1B-record run (RabbitMQ 3.12.10,
+    /// durable classic queue, ~1,500 msg/s): ~1,530 disk reads/s + ~1,530 writes/s
+    /// with only 2% of a 49k-deep queue resident in RAM, plus broker flow control
+    /// (3.6% of publishes nacked, 7.9M throttle events).
+    ///
+    /// Affects CLASSIC queues only: RabbitMQ quorum queues persist every message to
+    /// disk regardless of delivery mode (rabbitmq.com/docs/quorum-queues), so this
+    /// flag changes nothing there. Confirms, returns and retries are unchanged.
+    ///
+    /// WARNING: transient messages in a classic queue are LOST if the broker
+    /// restarts. Use only when the input is reproducible — never when the queue is
+    /// the only copy of the data.
+    #[arg(long = "transient", env = "RABBITMQ_TRANSIENT")]
+    transient: bool,
+
     /// Process files in parallel (one connection per file)
     #[arg(short = 'p', long = "parallel")]
     parallel: bool,
@@ -160,6 +179,7 @@ async fn main() -> Result<()> {
         retry_delay: Duration::from_secs(args.retry_delay),
         report_interval: args.report_interval,
         skip_lines: args.skip_lines,
+        persistent: !args.transient,
     };
 
     let multi_file = args.input_files.len() > 1;
@@ -372,6 +392,17 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(args.skip_lines, 6_420_000);
+    }
+
+    #[test]
+    fn test_transient_default_off_and_flag_on() {
+        // main.rs maps `persistent = !args.transient`; the default must stay
+        // persistent (delivery-mode 2), or the default silently becomes lossy.
+        let args = Args::try_parse_from(["sz_rabbit_publisher", "file.jsonl"]).unwrap();
+        assert!(!args.transient);
+        let args =
+            Args::try_parse_from(["sz_rabbit_publisher", "--transient", "file.jsonl"]).unwrap();
+        assert!(args.transient);
     }
 
     #[test]

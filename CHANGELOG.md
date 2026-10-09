@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--transient` (env `RABBITMQ_TRANSIENT`): publish `delivery_mode=1` instead of
+  the default persistent `2` (#37). Affects classic queues only — quorum queues
+  persist every message regardless of delivery mode. Transient messages in a
+  classic queue are lost on broker restart. Confirms, mandatory returns and
+  retries are unchanged.
+
 ### Changed
 
 - Dependencies (one rolled-up change for Dependabot #54, #52, #51, #50, #47,

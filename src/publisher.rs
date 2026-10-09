@@ -24,6 +24,32 @@ pub struct PublisherConfig {
     pub report_interval: u64,
     /// Skip the first N non-empty records before publishing (resume support).
     pub skip_lines: u64,
+    /// AMQP `delivery-mode`: `true` = 2 (persistent, written to the broker's message
+    /// store), `false` = 1 (transient, may stay in memory).
+    ///
+    /// Persistent is the default because losing queued records is usually worse than
+    /// the I/O. On a throughput benchmark it is close to pure overhead: every message
+    /// is written to disk on publish and read back to deliver. Measured on a 1B-record
+    /// run (RabbitMQ 3.12.10, durable classic queue, ~1,500 msg/s): ~1,530 disk
+    /// reads/s and ~1,530 writes/s with only 2% of a 49k-deep queue resident in RAM,
+    /// plus broker flow control (3.6% of publishes nacked, 7.9M throttle events).
+    ///
+    /// Only classic queues honour this: quorum queues persist every message to disk
+    /// regardless of delivery mode (<https://www.rabbitmq.com/docs/quorum-queues>).
+    /// Publisher confirms, mandatory returns and retries are unchanged either way.
+    ///
+    /// Transient messages in a classic queue are LOST if the broker restarts. Do not
+    /// use it when the queue is the only copy of the data, or while investigating
+    /// record loss.
+    pub persistent: bool,
+}
+
+/// Maps the config flag onto the AMQP `delivery-mode` byte: 2 = persistent (broker
+/// writes the message to its store), 1 = transient. Extracted so the mapping is
+/// unit-testable without a live broker — getting it backwards would silently make
+/// every benchmark either durable-and-slow or transient-and-lossy.
+fn delivery_mode(persistent: bool) -> u8 {
+    if persistent { 2 } else { 1 }
 }
 
 /// RabbitMQ publisher with delivery confirmations and back pressure
@@ -225,7 +251,8 @@ impl RabbitMQPublisher {
                     ..BasicPublishOptions::default()
                 },
                 message,
-                BasicProperties::default().with_delivery_mode(2),
+                BasicProperties::default()
+                    .with_delivery_mode(delivery_mode(self.config.persistent)),
             )
             .await
     }
@@ -500,6 +527,7 @@ mod tests {
             retry_delay: Duration::from_secs(3),
             report_interval: 10000,
             skip_lines: 0,
+            persistent: true,
         };
 
         assert_eq!(config.amqp_url, "amqp://localhost");
@@ -518,6 +546,7 @@ mod tests {
             retry_delay: Duration::from_secs(3),
             report_interval: 10000,
             skip_lines: 0,
+            persistent: true,
         };
 
         let publisher = RabbitMQPublisher::new(config);
@@ -540,5 +569,12 @@ mod tests {
         assert!(ensure_all_acked(&stats).is_ok());
         stats.acked = 4;
         assert!(ensure_all_acked(&stats).is_err());
+    }
+
+    #[test]
+    fn delivery_mode_maps_persistent_to_2_and_transient_to_1() {
+        // AMQP 0-9-1 basic.properties delivery-mode: 1 = non-persistent, 2 = persistent.
+        assert_eq!(delivery_mode(true), 2, "persistent must be delivery-mode 2");
+        assert_eq!(delivery_mode(false), 1, "transient must be delivery-mode 1");
     }
 }
