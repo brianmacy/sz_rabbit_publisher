@@ -9,9 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Release binaries are published for Linux only (x86_64 glibc and x86_64 musl).
+- Release binaries are published for Linux only: x86_64 and aarch64, each as
+  glibc and fully static musl (aarch64 built natively on GitHub arm runners).
   The macOS and Windows builds were removed from the release workflow and from
-  the v0.6.0 release. macOS (aarch64) returns once Developer ID signing and
+  the v0.6.0 release. The release workflow can be re-run for an existing tag
+  (`workflow_dispatch`, `tag` input) and uploads with `--clobber`. macOS (aarch64) returns once Developer ID signing and
   notarization are configured.
 
 ## [0.6.0] - 2026-10-09
