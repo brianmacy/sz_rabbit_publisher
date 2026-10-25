@@ -15,8 +15,8 @@
 //!
 //! When run, missing infrastructure is a hard FAILURE, never a skip.
 //! `TEST_RABBITMQ_IMAGE` overrides the broker image (default
-//! `mirror.gcr.io/library/rabbitmq:4.3-management`, the mirror.gcr.io
-//! mirror of the Docker Official Image, which avoids Docker Hub rate limits).
+//! `mirror.gcr.io/library/rabbitmq:4.3-management`, Google's mirror of the
+//! Docker Official Image, used to avoid anonymous registry rate limits).
 //! `TEST_QUEUE_TYPE` selects the queue type (default `quorum`, the production
 //! configuration; `classic` also supported).
 
@@ -55,9 +55,8 @@ impl Broker {
             )
             .with_test_writer()
             .try_init();
-        let image = std::env::var("TEST_RABBITMQ_IMAGE").unwrap_or_else(|_| {
-            "mirror.gcr.io/library/rabbitmq:4.3-management".to_string()
-        });
+        let image = std::env::var("TEST_RABBITMQ_IMAGE")
+            .unwrap_or_else(|_| "mirror.gcr.io/library/rabbitmq:4.3-management".to_string());
         let name = format!("szpub-bp-{test}-{}", std::process::id());
         // Remove a leftover from an aborted earlier run with the same pid.
         let _ = Command::new("docker").args(["rm", "-f", &name]).output();
