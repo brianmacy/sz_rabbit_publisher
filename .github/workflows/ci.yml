@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (pinned 2026-10-09)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (pinned 2026-10-25)
         with:
           toolchain: ${{ matrix.rust }}
 
@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (pinned 2026-10-09)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (pinned 2026-10-25)
         with:
           toolchain: stable
           components: clippy
@@ -75,7 +75,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (pinned 2026-10-09)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (pinned 2026-10-25)
         with:
           toolchain: stable
           components: rustfmt
@@ -88,9 +88,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       rabbitmq:
-        # AWS ECR Public mirror of the Docker Official Image: Docker Hub's
-        # unauthenticated pull rate limit fails shared GitHub runners.
-        image: public.ecr.aws/docker/library/rabbitmq:3-management
+        # Docker Official Image via Google's mirror.gcr.io: unauthenticated pulls
+        # from Docker Hub and public.ecr.aws are rate limited on shared runners.
+        image: mirror.gcr.io/library/rabbitmq:3-management
         ports:
           - 5672:5672
           - 15672:15672
@@ -104,7 +104,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (pinned 2026-10-09)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (pinned 2026-10-25)
         with:
           toolchain: stable
 
@@ -129,14 +129,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (pinned 2026-10-09)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (pinned 2026-10-25)
         with:
           toolchain: stable
 
       # Each test starts its own RabbitMQ container (alarms, restarts), so this
       # needs only the runner's Docker. Missing Docker FAILS the job.
-      # Pull once up front (from the ECR Public mirror, which has no Docker Hub
-      # rate limit) so the parallel tests don't each race to pull it.
+      # Pull once up front (from mirror.gcr.io, avoiding the Docker Hub and
+      # public.ecr.aws anonymous rate limits) so the parallel tests don't each
+      # race to pull it.
       - name: Pull RabbitMQ image
         run: |
           for i in 1 2 3 4 5; do
@@ -145,12 +146,12 @@ jobs:
           done
           exit 1
         env:
-          TEST_RABBITMQ_IMAGE: public.ecr.aws/docker/library/rabbitmq:4.3-management
+          TEST_RABBITMQ_IMAGE: mirror.gcr.io/library/rabbitmq:4.3-management
 
       - name: Run back-pressure tests
         env:
           TEST_QUEUE_TYPE: ${{ matrix.queue_type }}
-          TEST_RABBITMQ_IMAGE: public.ecr.aws/docker/library/rabbitmq:4.3-management
+          TEST_RABBITMQ_IMAGE: mirror.gcr.io/library/rabbitmq:4.3-management
         run: cargo test --test backpressure_test -- --ignored
 
   build:
@@ -164,7 +165,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (pinned 2026-10-09)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (pinned 2026-10-25)
         with:
           toolchain: stable
 
@@ -186,7 +187,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (pinned 2026-10-09)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (pinned 2026-10-25)
         with:
           toolchain: stable
 
@@ -197,7 +198,7 @@ jobs:
         run: cargo tarpaulin --verbose --lib --out Xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./cobertura.xml
           fail_ci_if_error: false

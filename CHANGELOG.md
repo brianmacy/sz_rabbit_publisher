@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dependency roll-up (Dependabot #55-#59): lapin 4.11.0 -> 4.12.0 (`src/`
+  identical to 4.11.0; the `drain_confirms` workaround still applies),
+  clap 4.6.6 -> 4.6.7, futures-core 0.3.32 -> 0.3.34,
+  codecov/codecov-action v6 -> v7.1.1, dtolnay/rust-toolchain -> 683b588.
+
+### Security
+
+- Lock-only bumps for the advisories that failed the scheduled Security Audit:
+  rustls 0.23.46 (RUSTSEC-2026-0346/-0347/-0348/-0349), rustls-webpki 0.103.16
+  (RUSTSEC-2026-0382), webpki-root-certs 1.0.10 (RUSTSEC-2026-0383), tokio
+  1.53.3 (RUSTSEC-2026-0386), event-listener 5.4.2 (RUSTSEC-2026-0221).
+  cargo-vet exemptions regenerated for the new versions.
+
 ## [0.6.2] - 2026-10-09
 
 ### Added
