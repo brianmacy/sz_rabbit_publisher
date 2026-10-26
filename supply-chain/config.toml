@@ -4,1166 +4,579 @@
 [cargo-vet]
 version = "0.10"
 
-[[exemptions.adler2]]
-version = "2.0.1"
-criteria = "safe-to-deploy"
+[imports.actix]
+url = "https://raw.githubusercontent.com/actix/supply-chain/main/audits.toml"
+
+[imports.ariel-os]
+url = "https://raw.githubusercontent.com/ariel-os/ariel-os/main/supply-chain/audits.toml"
+
+[imports.bytecode-alliance]
+url = "https://raw.githubusercontent.com/bytecodealliance/wasmtime/main/supply-chain/audits.toml"
+
+[imports.embark-studios]
+url = "https://raw.githubusercontent.com/EmbarkStudios/rust-ecosystem/main/audits.toml"
+
+[imports.fermyon]
+url = "https://raw.githubusercontent.com/fermyon/spin/main/supply-chain/audits.toml"
+
+[imports.google]
+url = "https://raw.githubusercontent.com/google/supply-chain/main/audits.toml"
+
+[imports.isrg]
+url = "https://raw.githubusercontent.com/divviup/libprio-rs/main/supply-chain/audits.toml"
+
+[imports.mozilla]
+url = "https://raw.githubusercontent.com/mozilla/supply-chain/main/audits.toml"
+
+[imports.zcash]
+url = "https://raw.githubusercontent.com/zcash/rust-ecosystem/main/supply-chain/audits.toml"
 
 [[exemptions.aes]]
 version = "0.8.4"
 criteria = "safe-to-deploy"
-
-[[exemptions.aho-corasick]]
-version = "1.1.4"
-criteria = "safe-to-deploy"
+notes = "Pure Rust implementation of the Advanced Encryption Standard (a.k.a. Rijndael). Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.amq-protocol]]
 version = "10.6.2"
 criteria = "safe-to-deploy"
+notes = "AMQP specifications. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.amq-protocol-tcp]]
 version = "10.6.2"
 criteria = "safe-to-deploy"
+notes = "AMQP URI TCP connection handling. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.amq-protocol-types]]
 version = "10.6.2"
 criteria = "safe-to-deploy"
+notes = "AMQP specifications - types. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.amq-protocol-uri]]
 version = "10.6.2"
 criteria = "safe-to-deploy"
-
-[[exemptions.anstream]]
-version = "1.0.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.anstyle]]
-version = "1.0.14"
-criteria = "safe-to-deploy"
-
-[[exemptions.anstyle-parse]]
-version = "1.0.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.anstyle-query]]
-version = "1.1.5"
-criteria = "safe-to-deploy"
-
-[[exemptions.anstyle-wincon]]
-version = "3.0.11"
-criteria = "safe-to-deploy"
-
-[[exemptions.anyhow]]
-version = "1.0.104"
-criteria = "safe-to-deploy"
+notes = "AMQP URI manipulation. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.asn1-rs]]
 version = "0.7.2"
 criteria = "safe-to-deploy"
+notes = "Parser/encoder for ASN.1 BER/DER data. Not covered: no imported audit chain reaches this version, and it is published by chifflier, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.asn1-rs-derive]]
 version = "0.6.0"
 criteria = "safe-to-deploy"
+notes = "Derive macros for the `asn1-rs` crate. Not covered: no imported audit chain reaches this version, and it is published by chifflier, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.asn1-rs-impl]]
 version = "0.2.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.async-channel]]
-version = "2.5.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.async-compat]]
-version = "0.2.5"
-criteria = "safe-to-deploy"
+notes = "Implementation details for the `asn1-rs` crate. Not covered: no imported audit chain reaches this version, and it is published by chifflier, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.async-executor]]
 version = "1.14.0"
 criteria = "safe-to-deploy"
+notes = "Async executor. Not covered: no imported audit chain reaches this version, and it is published by notgull, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.async-global-executor]]
 version = "3.1.0"
 criteria = "safe-to-deploy"
+notes = "A global executor built on top of async-executor and async-io. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.async-lock]]
 version = "3.4.2"
 criteria = "safe-to-deploy"
+notes = "Async synchronization primitives. Not covered: no imported audit chain reaches this version, and it is published by notgull, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.async-rs]]
 version = "0.8.11"
 criteria = "safe-to-deploy"
-
-[[exemptions.async-task]]
-version = "4.7.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.async-trait]]
-version = "0.1.89"
-criteria = "safe-to-deploy"
-
-[[exemptions.atomic-waker]]
-version = "1.1.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.autocfg]]
-version = "1.5.1"
-criteria = "safe-to-deploy"
+notes = "Async runtime abstraction. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.aws-lc-rs]]
 version = "1.18.1"
 criteria = "safe-to-deploy"
+notes = "aws-lc-rs is a cryptographic library using AWS-LC for its cryptographic operations. This library strives to be API-compatible with the popular Rust library named ring. Not covered: no imported audit chain reaches this version, and it is published by justsmth, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.aws-lc-sys]]
 version = "0.45.0"
 criteria = "safe-to-deploy"
+notes = "AWS-LC is a general-purpose cryptographic library maintained by the AWS Cryptography team for AWS and their customers. It іs based on code from the Google BoringSSL project and the OpenSSL project. Not covered: no imported audit chain reaches this version, and it is published by justsmth, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.backon]]
 version = "1.6.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.base64]]
-version = "0.22.1"
-criteria = "safe-to-deploy"
+notes = "Make retry like a built-in feature provided by Rust. Not covered: no imported audit chain reaches this version, and it is published by Xuanwo, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.base64ct]]
 version = "1.8.3"
 criteria = "safe-to-deploy"
+notes = 'Pure Rust implementation of Base64 (RFC 4648) which avoids any usages of data-dependent branches/LUTs and thereby provides portable "best effort" constant-time operation and embedded-friendly no_std support. Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred.'
 
 [[exemptions.bitflags]]
 version = "2.13.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.block-buffer]]
-version = "0.10.4"
-criteria = "safe-to-deploy"
+notes = "A macro to generate structures which behave like bitflags. Not covered: no imported audit chain reaches this version, and it is published by KodrAus, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.block-padding]]
 version = "0.3.3"
 criteria = "safe-to-deploy"
-
-[[exemptions.blocking]]
-version = "1.6.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.bumpalo]]
-version = "3.20.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.bytes]]
-version = "1.12.0"
-criteria = "safe-to-deploy"
+notes = "Padding and unpadding of messages divided into blocks. Not covered: no imported audit chain reaches this version, and it is published by newpavlov, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.bzip2]]
 version = "0.6.1"
 criteria = "safe-to-deploy"
+notes = "Bindings to libbzip2 for bzip2 compression and decompression exposed as Reader/Writer streams. Not covered: no imported audit chain reaches this version, and it is published by folkertdev, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.cbc]]
 version = "0.1.2"
 criteria = "safe-to-deploy"
-
-[[exemptions.cc]]
-version = "1.2.65"
-criteria = "safe-to-deploy"
-
-[[exemptions.cfg-if]]
-version = "1.0.4"
-criteria = "safe-to-deploy"
-
-[[exemptions.chacha20]]
-version = "0.10.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.cipher]]
-version = "0.4.4"
-criteria = "safe-to-deploy"
-
-[[exemptions.clap]]
-version = "4.6.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.clap_builder]]
-version = "4.6.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.clap_derive]]
-version = "4.6.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.clap_lex]]
-version = "1.1.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.cmake]]
-version = "0.1.58"
-criteria = "safe-to-deploy"
+notes = "Cipher Block Chaining (CBC) block cipher mode of operation. Not covered: no imported audit chain reaches this version, and it is published by newpavlov, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.cms]]
 version = "0.2.3"
 criteria = "safe-to-deploy"
-
-[[exemptions.colorchoice]]
-version = "1.0.5"
-criteria = "safe-to-deploy"
+notes = "Pure Rust implementation of the Cryptographic Message Syntax (CMS) as described in RFC 5652 and RFC 3274. Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.combine]]
 version = "4.6.7"
 criteria = "safe-to-deploy"
+notes = "Fast parser combinators on arbitrary streams with zero-copy support. Not covered: no imported audit chain reaches this version, and it is published by Marwes, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.concurrent-queue]]
 version = "2.5.0"
 criteria = "safe-to-deploy"
+notes = "Concurrent multi-producer multi-consumer queue. Not covered: no imported audit chain reaches this version, and it is published by notgull, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.const-oid]]
 version = "0.9.6"
 criteria = "safe-to-deploy"
+notes = "Const-friendly implementation of the ISO/IEC Object Identifier (OID) standard as defined in ITU X.660, with support for BER/DER encoding/decoding as well as heapless no_std (i.e. embedded) support. Not covered: no imported audit chain reaches this version, and it is published by baloo, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.cookie-factory]]
 version = "0.3.3"
 criteria = "safe-to-deploy"
-
-[[exemptions.core-foundation]]
-version = "0.9.4"
-criteria = "safe-to-deploy"
+notes = "nom inspired serialization library. Not covered: no imported audit chain reaches this version, and it is published by Geal, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.core-foundation]]
 version = "0.10.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.core-foundation-sys]]
-version = "0.8.7"
-criteria = "safe-to-deploy"
+notes = "Bindings to Core Foundation for macOS. Not covered: no imported audit chain reaches this version, and it is published by jdm, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.cpufeatures]]
 version = "0.2.17"
 criteria = "safe-to-deploy"
-
-[[exemptions.cpufeatures]]
-version = "0.3.0"
-criteria = "safe-to-deploy"
+notes = "Lightweight runtime CPU feature detection for aarch64, loongarch64, and x86/x86_64 targets, with no_std support and support for mobile targets including Android and iOS. Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.crc32fast]]
 version = "1.5.0"
 criteria = "safe-to-deploy"
+notes = "Fast, SIMD-accelerated CRC32 (IEEE) checksum computation. Not covered: no imported audit chain reaches this version, and it is published by srijs, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.critical-section]]
 version = "1.2.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.crossbeam-channel]]
-version = "0.5.15"
-criteria = "safe-to-deploy"
-
-[[exemptions.crossbeam-epoch]]
-version = "0.9.20"
-criteria = "safe-to-deploy"
-
-[[exemptions.crossbeam-utils]]
-version = "0.8.21"
-criteria = "safe-to-deploy"
+notes = "Cross-platform critical section. Not covered: no imported audit chain reaches this version, and it is published by Dirbaio, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.crypto-common]]
 version = "0.1.7"
 criteria = "safe-to-deploy"
+notes = "Common traits used by cryptographic algorithms. Not covered: no imported audit chain reaches this version, and it is published by newpavlov, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.data-encoding]]
 version = "2.11.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.der]]
-version = "0.7.10"
-criteria = "safe-to-deploy"
+notes = "Efficient and customizable data-encoding functions like base64, base32, and hex. Not covered: no imported audit chain reaches this version, and it is published by ia0, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.der-parser]]
 version = "10.0.0"
 criteria = "safe-to-deploy"
+notes = "Parser/encoder for ASN.1 BER/DER data. Not covered: no imported audit chain reaches this version, and it is published by chifflier, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.der_derive]]
 version = "0.7.3"
 criteria = "safe-to-deploy"
-
-[[exemptions.deranged]]
-version = "0.5.8"
-criteria = "safe-to-deploy"
+notes = "Custom derive support for the `der` crate's `Choice` and `Sequence` traits. Not covered: no imported audit chain reaches this version, and it is published by baloo, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.des]]
 version = "0.8.1"
 criteria = "safe-to-deploy"
+notes = "DES and Triple DES (3DES, TDES) block ciphers implementation. Not covered: no imported audit chain reaches this version, and it is published by newpavlov, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.digest]]
 version = "0.10.7"
 criteria = "safe-to-deploy"
-
-[[exemptions.displaydoc]]
-version = "0.2.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.dunce]]
-version = "1.0.5"
-criteria = "safe-to-deploy"
-
-[[exemptions.either]]
-version = "1.16.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.equivalent]]
-version = "1.0.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.errno]]
-version = "0.3.14"
-criteria = "safe-to-deploy"
+notes = "Traits for cryptographic hash functions and message authentication codes. Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.event-listener]]
 version = "5.4.2"
 criteria = "safe-to-deploy"
-
-[[exemptions.event-listener-strategy]]
-version = "0.5.4"
-criteria = "safe-to-deploy"
-
-[[exemptions.fastrand]]
-version = "2.4.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.find-msvc-tools]]
-version = "0.1.9"
-criteria = "safe-to-deploy"
+notes = "Notify async tasks or threads. Not covered: no imported audit chain reaches this version, and it is published by zeenix, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.flagset]]
 version = "0.4.7"
 criteria = "safe-to-deploy"
-
-[[exemptions.flate2]]
-version = "1.1.10"
-criteria = "safe-to-deploy"
+notes = "Data types and a macro for generating enumeration-based bit flags. Not covered: no imported audit chain reaches this version, and it is published by rjzak, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.flume]]
 version = "0.12.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.form_urlencoded]]
-version = "1.2.2"
-criteria = "safe-to-deploy"
+notes = "A blazingly fast multi-producer channel. Not covered: no imported audit chain reaches this version, and it is published by zesterer, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.fs_extra]]
 version = "1.3.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.futures-channel]]
-version = "0.3.32"
-criteria = "safe-to-deploy"
-
-[[exemptions.futures-core]]
-version = "0.3.34"
-criteria = "safe-to-deploy"
-
-[[exemptions.futures-io]]
-version = "0.3.32"
-criteria = "safe-to-deploy"
-
-[[exemptions.futures-lite]]
-version = "2.6.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.futures-macro]]
-version = "0.3.32"
-criteria = "safe-to-deploy"
+notes = "Expanding std::fs and std::io. Recursively copy folders with information about process and much more. Not covered: no imported audit chain reaches this version, and it is published by webdesus, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.futures-rustls]]
 version = "0.26.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.futures-sink]]
-version = "0.3.32"
-criteria = "safe-to-deploy"
-
-[[exemptions.futures-task]]
-version = "0.3.32"
-criteria = "safe-to-deploy"
-
-[[exemptions.futures-util]]
-version = "0.3.32"
-criteria = "safe-to-deploy"
+notes = "Asynchronous TLS/SSL streams for futures using Rustls. Not covered: no imported audit chain reaches this version, and it is published by quininer, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.generic-array]]
 version = "0.14.7"
 criteria = "safe-to-deploy"
+notes = "Generic types implementing functionality of arrays. Not covered: no imported audit chain reaches this version, and it is published by novacrazy, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.getrandom]]
 version = "0.2.17"
 criteria = "safe-to-deploy"
+notes = "A small cross-platform library for retrieving random data from system source. Not covered: no imported audit chain reaches this version, and it is published by newpavlov, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.getrandom]]
 version = "0.3.4"
 criteria = "safe-to-deploy"
-
-[[exemptions.getrandom]]
-version = "0.4.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.heck]]
-version = "0.5.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.hex]]
-version = "0.4.3"
-criteria = "safe-to-deploy"
+notes = "A small cross-platform library for retrieving random data from system source. Not covered: no imported audit chain reaches this version, and it is published by josephlr, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.hickory-net]]
 version = "0.26.3"
 criteria = "safe-to-deploy"
+notes = "hickory-net is a safe and secure low-level DNS library. This is the foundational DNS protocol library used by the other higher-level Hickory DNS crates. Not covered: no imported audit chain reaches this version, and it is published by bluejekyll, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.hickory-proto]]
 version = "0.26.3"
 criteria = "safe-to-deploy"
+notes = "hickory-proto is a safe and secure low-level DNS library. This is the foundational DNS protocol library used by the other higher-level Hickory DNS crates. Not covered: no imported audit chain reaches this version, and it is published by bluejekyll, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.hickory-resolver]]
 version = "0.26.3"
 criteria = "safe-to-deploy"
-
-[[exemptions.hmac]]
-version = "0.12.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.icu_collections]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.icu_locale_core]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.icu_normalizer]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.icu_normalizer_data]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.icu_properties]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.icu_properties_data]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.icu_provider]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.idna]]
-version = "1.1.0"
-criteria = "safe-to-deploy"
+notes = "hickory-resolver is a safe and secure DNS stub resolver library intended to be a high-level library for DNS record resolution. Not covered: no imported audit chain reaches this version, and it is published by bluejekyll, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.idna_adapter]]
 version = "1.2.2"
 criteria = "safe-to-deploy"
-
-[[exemptions.inout]]
-version = "0.1.4"
-criteria = "safe-to-deploy"
-
-[[exemptions.ipconfig]]
-version = "0.3.4"
-criteria = "safe-to-deploy"
+notes = "Back end adapter for idna. Not covered: no imported audit chain reaches this version, and it is published by hsivonen, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.ipnet]]
 version = "2.12.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.is_terminal_polyfill]]
-version = "1.70.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.itoa]]
-version = "1.0.18"
-criteria = "safe-to-deploy"
+notes = "Provides types and useful methods for working with IPv4 and IPv6 network addresses, commonly called IP prefixes. The new `IpNet`, `Ipv4Net`, and `Ipv6Net` types build on the existing `IpAddr`, `Ipv4Addr`, and `Ipv6Addr` types already provided in Rust's standard library and align to their design to stay consistent. The module also provides useful traits that extend `Ipv4Addr` and `Ipv6Addr` with methods for `Add`, `Sub`, `BitAnd`, and `BitOr` operations. The module only uses stable feature so it is guaranteed to compile using the stable toolchain. Not covered: no imported audit chain reaches this version, and it is published by krisprice, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.jni]]
 version = "0.22.4"
 criteria = "safe-to-deploy"
+notes = "Rust bindings to the JNI. Not covered: no imported audit chain reaches this version, and it is published by rib, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.jni-macros]]
 version = "0.22.4"
 criteria = "safe-to-deploy"
+notes = "Procedural macros for the jni crate. Not covered: no imported audit chain reaches this version, and it is published by rib, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.jni-sys]]
 version = "0.4.1"
 criteria = "safe-to-deploy"
+notes = "Rust definitions corresponding to jni.h. Not covered: no imported audit chain reaches this version, and it is published by rib, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.jni-sys-macros]]
 version = "0.4.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.jobserver]]
-version = "0.1.34"
-criteria = "safe-to-deploy"
+notes = "Macros for jni-sys crate. Not covered: no imported audit chain reaches this version, and it is published by rib, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.js-sys]]
 version = "0.3.103"
 criteria = "safe-to-deploy"
+notes = "Bindings for all JS global objects and functions in all JS environments like Node.js and browsers, built on `#[wasm_bindgen]` using the `wasm-bindgen` crate. Not covered: no imported audit chain reaches this version, and it is published by github:wasm-bindgen/wasm-bindgen, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.lapin]]
 version = "4.12.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.lazy_static]]
-version = "1.5.0"
-criteria = "safe-to-deploy"
+notes = "AMQP client library. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.libbz2-rs-sys]]
 version = "0.2.5"
 criteria = "safe-to-deploy"
-
-[[exemptions.libc]]
-version = "0.2.186"
-criteria = "safe-to-deploy"
-
-[[exemptions.linux-raw-sys]]
-version = "0.12.1"
-criteria = "safe-to-run"
-
-[[exemptions.litemap]]
-version = "0.8.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.lock_api]]
-version = "0.4.14"
-criteria = "safe-to-deploy"
-
-[[exemptions.log]]
-version = "0.4.33"
-criteria = "safe-to-deploy"
-
-[[exemptions.matchers]]
-version = "0.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.memchr]]
-version = "2.8.2"
-criteria = "safe-to-deploy"
+notes = "a drop-in compatible rust bzip2 implementation. Not covered: no imported audit chain reaches this version, and it is published by folkertdev, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.minimal-lexical]]
 version = "0.2.1"
 criteria = "safe-to-deploy"
+notes = "Fast float parsing conversion routines. Not covered: no imported audit chain reaches this version, and it is published by Alexhuszagh, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.miniz_oxide]]
 version = "0.9.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.mio]]
-version = "1.2.1"
-criteria = "safe-to-deploy"
+notes = "DEFLATE compression and decompression library rewritten in Rust based on miniz. Not covered: no imported audit chain reaches this version, and it is published by oyvindln, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.moka]]
 version = "0.12.15"
 criteria = "safe-to-deploy"
-
-[[exemptions.ndk-context]]
-version = "0.1.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.nom]]
-version = "7.1.3"
-criteria = "safe-to-deploy"
+notes = "A fast and concurrent cache library inspired by Java Caffeine. Not covered: no imported audit chain reaches this version, and it is published by tatsuya6502, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.nom]]
 version = "8.0.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.nu-ansi-term]]
-version = "0.50.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.num-bigint]]
-version = "0.4.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.num-conv]]
-version = "0.2.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.num-integer]]
-version = "0.1.46"
-criteria = "safe-to-deploy"
-
-[[exemptions.num-traits]]
-version = "0.2.19"
-criteria = "safe-to-deploy"
+notes = "A byte-oriented, zero-copy, parser combinators library. Not covered: no imported audit chain reaches this version, and it is published by Geal, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.oid-registry]]
 version = "0.8.1"
 criteria = "safe-to-deploy"
+notes = "Object Identifier (OID) database. Not covered: no imported audit chain reaches this version, and it is published by chifflier, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.once_cell]]
 version = "1.21.4"
 criteria = "safe-to-deploy"
-
-[[exemptions.once_cell_polyfill]]
-version = "1.70.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.openssl-probe]]
-version = "0.2.1"
-criteria = "safe-to-deploy"
+notes = "Single assignment cells and lazy values. Not covered: no imported audit chain reaches this version, and it is published by matklad, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.p12-keystore]]
 version = "0.2.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.parking]]
-version = "2.2.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.parking_lot]]
-version = "0.12.5"
-criteria = "safe-to-deploy"
-
-[[exemptions.parking_lot_core]]
-version = "0.9.12"
-criteria = "safe-to-deploy"
+notes = "Convenient API to work with PKCS#12 files. Not covered: no imported audit chain reaches this version, and it is published by ancwrd1, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.pbkdf2]]
 version = "0.12.2"
 criteria = "safe-to-deploy"
-
-[[exemptions.pem-rfc7468]]
-version = "0.7.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.percent-encoding]]
-version = "2.3.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.pin-project-lite]]
-version = "0.2.17"
-criteria = "safe-to-deploy"
+notes = "Generic implementation of PBKDF2. Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.piper]]
 version = "0.2.5"
 criteria = "safe-to-deploy"
+notes = "An asynchronous single-consumer single-producer pipe for bytes. Not covered: no imported audit chain reaches this version, and it is published by notgull, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.pkcs12]]
 version = "0.1.0"
 criteria = "safe-to-deploy"
+notes = "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #12: Personal Information Exchange Syntax v1.1 (RFC7292). Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.pkcs5]]
 version = "0.7.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.pkg-config]]
-version = "0.3.34"
-criteria = "safe-to-deploy"
-
-[[exemptions.portable-atomic]]
-version = "1.13.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.potential_utf]]
-version = "0.1.5"
-criteria = "safe-to-deploy"
-
-[[exemptions.powerfmt]]
-version = "0.2.0"
-criteria = "safe-to-deploy"
+notes = "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #5: Password-Based Cryptography Specification Version 2.1 (RFC 8018). Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.prefix-trie]]
 version = "0.8.4"
 criteria = "safe-to-deploy"
-
-[[exemptions.proc-macro2]]
-version = "1.0.106"
-criteria = "safe-to-deploy"
-
-[[exemptions.quote]]
-version = "1.0.46"
-criteria = "safe-to-deploy"
+notes = "Prefix trie (tree) datastructure (both a set and a map) that provides exact and longest-prefix matches. Not covered: no imported audit chain reaches this version, and it is published by tiborschneider, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.r-efi]]
 version = "5.3.0"
 criteria = "safe-to-deploy"
+notes = "UEFI Reference Specification Protocol Constants and Definitions. Not covered: no imported audit chain reaches this version, and it is published by dvdhrm, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.r-efi]]
 version = "6.0.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.rand]]
-version = "0.10.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.rand_core]]
-version = "0.10.1"
-criteria = "safe-to-deploy"
+notes = "UEFI Reference Specification Protocol Constants and Definitions. Not covered: no imported audit chain reaches this version, and it is published by dvdhrm, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.rc2]]
 version = "0.8.1"
 criteria = "safe-to-deploy"
+notes = "RC2 block cipher. Not covered: no imported audit chain reaches this version, and it is published by newpavlov, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.redox_syscall]]
 version = "0.5.18"
 criteria = "safe-to-deploy"
-
-[[exemptions.regex-automata]]
-version = "0.4.14"
-criteria = "safe-to-deploy"
-
-[[exemptions.regex-syntax]]
-version = "0.8.11"
-criteria = "safe-to-deploy"
-
-[[exemptions.resolv-conf]]
-version = "0.7.6"
-criteria = "safe-to-deploy"
+notes = "A Rust library to access raw Redox system calls. Not covered: no imported audit chain reaches this version, and it is published by 4lDO2, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.ring]]
 version = "0.17.14"
 criteria = "safe-to-deploy"
-
-[[exemptions.rustc_version]]
-version = "0.4.1"
-criteria = "safe-to-deploy"
+notes = "An experiment. Not covered: no imported audit chain reaches this version, and it is published by briansmith, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.rusticata-macros]]
 version = "4.1.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.rustix]]
-version = "1.1.4"
-criteria = "safe-to-run"
-
-[[exemptions.rustls]]
-version = "0.23.46"
-criteria = "safe-to-deploy"
+notes = "Helper macros for Rusticata. Not covered: no imported audit chain reaches this version, and it is published by chifflier, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.rustls-connector]]
 version = "0.23.6"
 criteria = "safe-to-deploy"
-
-[[exemptions.rustls-native-certs]]
-version = "0.8.4"
-criteria = "safe-to-deploy"
-
-[[exemptions.rustls-pki-types]]
-version = "1.14.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.rustls-platform-verifier]]
-version = "0.7.0"
-criteria = "safe-to-deploy"
+notes = "Connector similar to openssl or native-tls for rustls. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.rustls-platform-verifier-android]]
 version = "0.1.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.rustls-webpki]]
-version = "0.103.16"
-criteria = "safe-to-deploy"
-
-[[exemptions.rustversion]]
-version = "1.0.22"
-criteria = "safe-to-deploy"
+notes = "The internal JVM support component of the rustls-platform-verifier crate. You shouldn't depend on this directly. Not covered: no imported audit chain reaches this version, and it is published by cpu, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.salsa20]]
 version = "0.10.2"
 criteria = "safe-to-deploy"
-
-[[exemptions.same-file]]
-version = "1.0.6"
-criteria = "safe-to-deploy"
+notes = "Pure Rust implementation of the Salsa20 stream cipher. Not covered: no imported audit chain reaches this version, and it is published by newpavlov, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.schannel]]
 version = "0.1.29"
 criteria = "safe-to-deploy"
-
-[[exemptions.scopeguard]]
-version = "1.2.0"
-criteria = "safe-to-deploy"
+notes = "Schannel bindings for rust, allowing SSL/TLS (e.g. https) without openssl. Not covered: no imported audit chain reaches this version, and it is published by steffengy, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.scrypt]]
 version = "0.11.0"
 criteria = "safe-to-deploy"
+notes = "Scrypt password-based key derivation function. Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.security-framework]]
 version = "3.7.0"
 criteria = "safe-to-deploy"
+notes = "Security.framework bindings for macOS and iOS. Not covered: no imported audit chain reaches this version, and it is published by kornelski, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.security-framework-sys]]
 version = "2.17.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.semver]]
-version = "1.0.28"
-criteria = "safe-to-deploy"
-
-[[exemptions.serde]]
-version = "1.0.228"
-criteria = "safe-to-deploy"
-
-[[exemptions.serde_core]]
-version = "1.0.228"
-criteria = "safe-to-deploy"
-
-[[exemptions.serde_derive]]
-version = "1.0.228"
-criteria = "safe-to-deploy"
-
-[[exemptions.serde_json]]
-version = "1.0.150"
-criteria = "safe-to-deploy"
-
-[[exemptions.sha1]]
-version = "0.10.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.sha2]]
-version = "0.10.9"
-criteria = "safe-to-deploy"
-
-[[exemptions.sharded-slab]]
-version = "0.1.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.shlex]]
-version = "2.0.1"
-criteria = "safe-to-deploy"
+notes = "Apple `Security.framework` low-level FFI bindings. Not covered: no imported audit chain reaches this version, and it is published by kornelski, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.signal-hook-registry]]
 version = "1.4.8"
 criteria = "safe-to-deploy"
+notes = "Backend crate for signal-hook. Not covered: no imported audit chain reaches this version, and it is published by vorner, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.simd-adler32]]
 version = "0.3.9"
 criteria = "safe-to-deploy"
+notes = "A SIMD-accelerated Adler-32 hash algorithm implementation. Not covered: no imported audit chain reaches this version, and it is published by mcountryman, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.simd_cesu8]]
 version = "1.1.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.simdutf8]]
-version = "0.1.5"
-criteria = "safe-to-deploy"
-
-[[exemptions.slab]]
-version = "0.4.12"
-criteria = "safe-to-deploy"
-
-[[exemptions.smallvec]]
-version = "1.15.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.socket2]]
-version = "0.6.4"
-criteria = "safe-to-deploy"
+notes = "An extremely fast, SIMD accelerated, encoding and decoding library for CESU-8 and Modified UTF-8. Not covered: no imported audit chain reaches this version, and it is published by seancroach, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.spin]]
 version = "0.9.9"
 criteria = "safe-to-deploy"
+notes = "Spin-based synchronization primitives. Not covered: no imported audit chain reaches this version, and it is published by zesterer, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.spki]]
 version = "0.7.3"
 criteria = "safe-to-deploy"
+notes = "X.509 Subject Public Key Info (RFC5280) describing public keys as well as their associated AlgorithmIdentifiers (i.e. OIDs). Not covered: no imported audit chain reaches this version, and it is published by baloo, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.stable_deref_trait]]
 version = "1.2.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.strsim]]
-version = "0.11.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.subtle]]
-version = "2.6.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.syn]]
-version = "2.0.118"
-criteria = "safe-to-deploy"
-
-[[exemptions.syn]]
-version = "3.0.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.synstructure]]
-version = "0.13.2"
-criteria = "safe-to-deploy"
+notes = "An unsafe marker trait for types like Box and Rc that dereference to a stable address even when moved, and hence can be used with libraries such as owning_ref and rental. Not covered: no imported audit chain reaches this version, and it is published by Storyyeller, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.system-configuration]]
 version = "0.7.0"
 criteria = "safe-to-deploy"
+notes = "Bindings to SystemConfiguration framework for macOS. Not covered: no imported audit chain reaches this version, and it is published by MarkusPettersson98, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.system-configuration-sys]]
 version = "0.6.0"
 criteria = "safe-to-deploy"
+notes = "Low level bindings to SystemConfiguration framework for macOS. Not covered: no imported audit chain reaches this version, and it is published by faern, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.tagptr]]
 version = "0.2.0"
 criteria = "safe-to-deploy"
+notes = "Strongly typed atomic and non-atomic tagged pointers. Not covered: no imported audit chain reaches this version, and it is published by oliver-giersch, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.tcp-stream]]
 version = "0.34.14"
 criteria = "safe-to-deploy"
-
-[[exemptions.tempfile]]
-version = "3.27.0"
-criteria = "safe-to-run"
-
-[[exemptions.thiserror]]
-version = "2.0.18"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror-impl]]
-version = "2.0.18"
-criteria = "safe-to-deploy"
-
-[[exemptions.thread_local]]
-version = "1.1.9"
-criteria = "safe-to-deploy"
+notes = "std::net::TcpStream on steroids. Not covered: no imported audit chain reaches this version, and it is published by Keruspe, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.time]]
 version = "0.3.51"
 criteria = "safe-to-deploy"
-
-[[exemptions.time-core]]
-version = "0.1.9"
-criteria = "safe-to-deploy"
+notes = "Date and time library. Fully interoperable with the standard library. Mostly compatible with #![no_std]. Not covered: no imported audit chain reaches this version, and it is published by jhpratt, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.time-macros]]
 version = "0.2.30"
 criteria = "safe-to-deploy"
-
-[[exemptions.tinystr]]
-version = "0.8.3"
-criteria = "safe-to-deploy"
+notes = "Procedural macros for the time crate. This crate is an implementation detail and should not be relied upon directly. Not covered: no imported audit chain reaches this version, and it is published by jhpratt, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.tinyvec]]
 version = "1.11.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.tinyvec_macros]]
-version = "0.1.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.tokio]]
-version = "1.53.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.tokio-macros]]
-version = "2.7.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.tokio-stream]]
-version = "0.1.18"
-criteria = "safe-to-deploy"
+notes = "`tinyvec` provides 100% safe vec-like data structures. Not covered: no imported audit chain reaches this version, and it is published by Lokathor, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.tracing]]
 version = "0.1.44"
 criteria = "safe-to-deploy"
+notes = "Application-level tracing for Rust. Not covered: no imported audit chain reaches this version, and it is published by hds, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.tracing-attributes]]
 version = "0.1.31"
 criteria = "safe-to-deploy"
-
-[[exemptions.tracing-core]]
-version = "0.1.36"
-criteria = "safe-to-deploy"
-
-[[exemptions.tracing-log]]
-version = "0.2.0"
-criteria = "safe-to-deploy"
+notes = "Procedural macro attributes for automatically instrumenting functions. Not covered: no imported audit chain reaches this version, and it is published by hds, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.tracing-subscriber]]
 version = "0.3.23"
 criteria = "safe-to-deploy"
+notes = "Utilities for implementing and composing `tracing` subscribers. Not covered: no imported audit chain reaches this version, and it is published by hds, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.typenum]]
 version = "1.20.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.unicode-ident]]
-version = "1.0.24"
-criteria = "safe-to-deploy"
-
-[[exemptions.untrusted]]
-version = "0.9.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.url]]
-version = "2.5.8"
-criteria = "safe-to-deploy"
-
-[[exemptions.utf8_iter]]
-version = "1.0.4"
-criteria = "safe-to-deploy"
-
-[[exemptions.utf8parse]]
-version = "0.2.2"
-criteria = "safe-to-deploy"
+notes = "Typenum is a Rust library for type-level numbers evaluated at compile time. It currently supports bits, unsigned integers, and signed integers. It also provides a type-level array of type-level numbers, but its implementation is incomplete. Not covered: no imported audit chain reaches this version, and it is published by paholg, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.uuid]]
 version = "1.23.4"
 criteria = "safe-to-deploy"
-
-[[exemptions.valuable]]
-version = "0.1.1"
-criteria = "safe-to-deploy"
+notes = "A library to generate and parse UUIDs. Not covered: no imported audit chain reaches this version, and it is published by KodrAus, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.version_check]]
 version = "0.9.5"
 criteria = "safe-to-deploy"
-
-[[exemptions.walkdir]]
-version = "2.5.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.wasi]]
-version = "0.11.1+wasi-snapshot-preview1"
-criteria = "safe-to-deploy"
-
-[[exemptions.wasip2]]
-version = "1.0.4+wasi-0.2.12"
-criteria = "safe-to-deploy"
+notes = "Tiny crate to check the version of the installed/running rustc. Not covered: no imported audit chain reaches this version, and it is published by SergioBenitez, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.wasm-bindgen]]
 version = "0.2.126"
 criteria = "safe-to-deploy"
+notes = "Easy support for interacting between JS and Rust. Not covered: no imported audit chain reaches this version, and it is published by github:wasm-bindgen/wasm-bindgen, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.wasm-bindgen-macro]]
 version = "0.2.126"
 criteria = "safe-to-deploy"
+notes = "Definition of the `#[wasm_bindgen]` attribute, an internal dependency. Not covered: no imported audit chain reaches this version, and it is published by github:wasm-bindgen/wasm-bindgen, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.wasm-bindgen-macro-support]]
 version = "0.2.126"
 criteria = "safe-to-deploy"
+notes = "Implementation APIs for the `#[wasm_bindgen]` attribute. Not covered: no imported audit chain reaches this version, and it is published by github:wasm-bindgen/wasm-bindgen, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.wasm-bindgen-shared]]
 version = "0.2.126"
 criteria = "safe-to-deploy"
+notes = "Shared support between wasm-bindgen and wasm-bindgen cli, an internal dependency. Not covered: no imported audit chain reaches this version, and it is published by github:wasm-bindgen/wasm-bindgen, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.webpki-root-certs]]
 version = "1.0.10"
 criteria = "safe-to-deploy"
+notes = "Mozilla trusted certificate authorities in self-signed X.509 format for use with crates other than webpki. Not covered: no imported audit chain reaches this version, and it is published by cpu, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.widestring]]
 version = "1.2.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.winapi-util]]
-version = "0.1.11"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-link]]
-version = "0.2.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-registry]]
-version = "0.6.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-result]]
-version = "0.4.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-strings]]
-version = "0.5.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-sys]]
-version = "0.52.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-sys]]
-version = "0.61.2"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows-targets]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows_aarch64_gnullvm]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows_aarch64_msvc]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows_i686_gnu]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows_i686_gnullvm]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows_i686_msvc]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows_x86_64_gnu]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows_x86_64_gnullvm]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.windows_x86_64_msvc]]
-version = "0.52.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.wit-bindgen]]
-version = "0.57.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.writeable]]
-version = "0.6.3"
-criteria = "safe-to-deploy"
+notes = "A wide string Rust library for converting to and from wide strings, such as those often used in Windows API or other FFI libaries. Both `u16` and `u32` string types are provided, including support for UTF-16 and UTF-32, malformed encoding, C-style strings, etc. Not covered: no imported audit chain reaches this version, and it is published by VoidStarKat, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.x509-cert]]
 version = "0.2.5"
 criteria = "safe-to-deploy"
+notes = "Pure Rust implementation of the X.509 Public Key Infrastructure Certificate format as described in RFC 5280. Not covered: no imported audit chain reaches this version, and it is published by tarcieri, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.x509-parser]]
 version = "0.18.1"
 criteria = "safe-to-deploy"
-
-[[exemptions.yoke]]
-version = "0.8.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.yoke-derive]]
-version = "0.8.2"
-criteria = "safe-to-deploy"
+notes = "Parser for the X.509 v3 format (RFC 5280 certificates). Not covered: no imported audit chain reaches this version, and it is published by chifflier, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.zerofrom]]
 version = "0.1.8"
 criteria = "safe-to-deploy"
-
-[[exemptions.zerofrom-derive]]
-version = "0.1.7"
-criteria = "safe-to-deploy"
+notes = "ZeroFrom trait for constructing. Not covered: no imported audit chain reaches this version, and it is published by sffc, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.zeroize]]
 version = "1.9.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.zerotrie]]
-version = "0.2.4"
-criteria = "safe-to-deploy"
-
-[[exemptions.zerovec]]
-version = "0.11.6"
-criteria = "safe-to-deploy"
-
-[[exemptions.zerovec-derive]]
-version = "0.11.3"
-criteria = "safe-to-deploy"
+notes = "Securely clear secrets from memory with a simple trait built on stable Rust primitives which guarantee memory is zeroed using an operation will not be 'optimized away' by the compiler. Uses a portable pure Rust implementation that works everywhere, even WASM!. Not covered: no imported audit chain reaches this version, and it is published by github:RustCrypto/utils, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
 
 [[exemptions.zlib-rs]]
 version = "0.6.8"
 criteria = "safe-to-deploy"
-
-[[exemptions.zmij]]
-version = "1.0.21"
-criteria = "safe-to-deploy"
+notes = "A memory-safe zlib implementation written in rust. Not covered: no imported audit chain reaches this version, and it is published by folkertdev, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
