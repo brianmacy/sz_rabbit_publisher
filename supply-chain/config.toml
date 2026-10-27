@@ -580,3 +580,15 @@ notes = "Securely clear secrets from memory with a simple trait built on stable 
 version = "0.6.8"
 criteria = "safe-to-deploy"
 notes = "A memory-safe zlib implementation written in rust. Not covered: no imported audit chain reaches this version, and it is published by folkertdev, who is not in the [[trusted]] section of any imported audit set and is not trusted here. Full audit deferred."
+
+[[exemptions.zstd]]
+version = "0.11.1+zstd.1.5.2"
+criteria = "safe-to-deploy"
+
+[[exemptions.zstd-safe]]
+version = "5.0.1+zstd.1.5.2"
+criteria = "safe-to-deploy"
+
+[[exemptions.zstd-sys]]
+version = "2.1.2+zstd.1.5.7"
+criteria = "safe-to-deploy"

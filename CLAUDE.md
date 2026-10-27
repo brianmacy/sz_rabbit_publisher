@@ -67,6 +67,6 @@ Key dependencies:
 - RabbitMQ client library (lapin)
 - Async runtime (tokio)
 - CLI parsing (clap with derive and env features)
-- Gzip support (flate2)
+- Gzip support (flate2), bzip2 (bzip2), zstd (zstd)
 - Error handling (anyhow)
 - Logging (tracing, tracing-subscriber)

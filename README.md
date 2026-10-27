@@ -8,8 +8,9 @@ High-performance RabbitMQ publisher written in Rust for publishing JSONL (JSON L
 - **Multi-File**: Process multiple JSONL files sequentially or in parallel
 - **Resilient**: Automatic reconnection on broker failure; nacked messages retried forever
 - **Back Pressure**: Bounded channel implementation prevents memory exhaustion
-- **Compression Support**: Automatically detects and decompresses gzip (`.gz`) and bzip2
-  (`.bz2`) files; bzip2 handles concatenated streams (`pbzip2`/`lbzip2` output)
+- **Compression Support**: Automatically detects and decompresses gzip (`.gz`), bzip2
+  (`.bz2`) and zstd (`.zst`) files; bzip2 and zstd handle concatenated
+  streams/frames (`pbzip2`/`lbzip2`/`pzstd` output)
 - **Progress Reporting**: Per-file interval rate with file labels in parallel mode
 - **CLI-First**: All configuration via command-line arguments or environment variables
 
@@ -49,17 +50,18 @@ export RABBITMQ_ROUTING_KEY="my.routing.key"
 sz_rabbit_publisher data.jsonl
 ```
 
-### With Compressed Files (gzip / bzip2)
+### With Compressed Files (gzip / bzip2 / zstd)
 
-The tool automatically detects gzip and bzip2 compression by magic bytes:
+The tool automatically detects gzip, bzip2 and zstd compression by magic bytes (not file extension):
 
 ```bash
 sz_rabbit_publisher data.jsonl.gz
 sz_rabbit_publisher data.jsonl.bz2
+sz_rabbit_publisher data.jsonl.zst
 ```
 
-bzip2 decode is single-threaded per file (concatenated `pbzip2`/`lbzip2` streams are
-fully decoded). To decompress many files concurrently, pass them together with `--parallel`.
+Decode is single-threaded per file (concatenated `pbzip2`/`lbzip2` bzip2 streams and
+multi-frame zstd are fully decoded). To decompress many files concurrently, pass them together with `--parallel`.
 
 ### Multiple Files
 
@@ -97,7 +99,7 @@ sz_rabbit_publisher -v data.jsonl
 sz_rabbit_publisher [OPTIONS] <INPUT_FILE>...
 
 Arguments:
-  <INPUT_FILE>...  One or more JSONL files (plain text, gzip, or bzip2 — auto-detected)
+  <INPUT_FILE>...  One or more JSONL files (plain text, gzip, bzip2, or zstd — auto-detected)
 
 Options:
   -u, --url <AMQP_URL>           RabbitMQ connection URL
@@ -187,7 +189,7 @@ failure may be duplicated (reported as `republished`), never lost.
   flag saves nothing. On a classic queue it skips the per-message disk write, and
   **transient messages are LOST if the broker restarts** — use it only for
   reproducible input. Confirms, returns and retries are identical either way.
-- **Input integrity**: multi-member gzip and concatenated bzip2 are fully
+- **Input integrity**: multi-member gzip, concatenated bzip2 and multi-frame zstd are fully
   decoded; a line that is not UTF-8 is published verbatim; a genuine read or
   decompression error (e.g. truncated `.gz`) fails the run non-zero, after
   confirming everything read, with the exact `--skip-lines` resume point

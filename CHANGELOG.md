@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- zstd (`.zst`) input support, auto-detected by magic bytes (`28 B5 2F FD`, or a
+  leading skippable frame) alongside gzip and bzip2 -- not by file extension. Uses
+  the `zstd` crate's streaming decoder, so multi-frame files (`cat a.zst b.zst`,
+  `pzstd`) are fully decoded. Decode is single-threaded per file; `--skip-lines`
+  resume decodes and discards the prefix, as for gzip/bzip2. A truncated/corrupt
+  `.zst` fails the run non-zero (never a quiet EOF). New dependency: `zstd` 0.14
+  (BSD-3-Clause; `zstd-sys` compiles bundled libzstd with the C toolchain).
+
 ### Changed
 
 - Dependency roll-up (Dependabot #55-#59): lapin 4.11.0 -> 4.12.0 (`src/`

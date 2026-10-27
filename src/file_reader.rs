@@ -5,12 +5,21 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use zstd::stream::read::Decoder as ZstdDecoder;
 
 /// Magic bytes for gzip files
 const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
 
 /// Magic bytes for bzip2 files (`BZh`, followed by a `1`–`9` block-size digit)
 const BZIP2_MAGIC: [u8; 3] = [0x42, 0x5a, 0x68];
+
+/// Magic bytes for a zstd frame (`0xFD2FB528`, little-endian on disk)
+const ZSTD_MAGIC: [u8; 4] = [0x28, 0xb5, 0x2f, 0xfd];
+
+/// A zstd *skippable* frame starts with `0x184D2A5?` (little-endian `5? 2A 4D 18`).
+/// Some encoders (e.g. `zstd --rsyncable` wrappers, seekable-format writers) emit one
+/// before the first data frame; the decoder skips it transparently.
+const ZSTD_SKIPPABLE_MAGIC_TAIL: [u8; 3] = [0x2a, 0x4d, 0x18];
 
 /// Reads the first `N` bytes of a file for magic-byte sniffing. Returns the
 /// bytes actually read (a short/empty file yields fewer than `N`).
@@ -38,21 +47,34 @@ pub async fn is_bz2_file<P: AsRef<Path>>(path: P) -> Result<bool> {
     Ok(n == 3 && magic == BZIP2_MAGIC)
 }
 
-/// Active reader variant — plain text, gzip-, or bzip2-compressed.
+/// Detects if a file is zstd-compressed by checking magic bytes (a data frame, or a
+/// skippable frame preceding one)
+pub async fn is_zstd_file<P: AsRef<Path>>(path: P) -> Result<bool> {
+    let (magic, n) = read_magic::<_, 4>(path).await?;
+    Ok(n == 4
+        && (magic == ZSTD_MAGIC
+            || (magic[0] & 0xf0 == 0x50 && magic[1..] == ZSTD_SKIPPABLE_MAGIC_TAIL)))
+}
+
+/// Active reader variant — plain text, gzip-, bzip2-, or zstd-compressed.
 /// `Gzip` uses `MultiGzDecoder` so multi-member gzip files (`cat a.gz b.gz`,
 /// `pigz`, `bgzip`) are fully decoded; a single-member decoder silently stops
 /// at the end of the first member, dropping the rest of the file.
 /// `Bz2` uses `MultiBzDecoder` so concatenated bzip2 streams (e.g. files
 /// produced by `pbzip2`/`lbzip2`) are fully decoded, not just the first stream.
+/// `Zstd` uses the `zstd` crate's streaming decoder, which decodes concatenated
+/// frames back to back (e.g. `cat a.zst b.zst`, `pzstd` output) and skips skippable
+/// frames, so multi-frame files are fully decoded.
 /// Decode is single-threaded per file; concurrency across multiple files comes
 /// from `--parallel`.
 enum LineReader {
     Plain(BufReader<std::fs::File>),
     Gzip(BufReader<MultiGzDecoder<std::fs::File>>),
     Bz2(BufReader<MultiBzDecoder<std::fs::File>>),
+    Zstd(BufReader<ZstdDecoder<'static, BufReader<std::fs::File>>>),
 }
 
-/// Streams lines lazily from a file, automatically handling gzip compression
+/// Streams lines lazily from a file, automatically handling gzip, bzip2 and zstd compression
 pub struct FileReader {
     reader: LineReader,
     lines_read: u64,
@@ -60,7 +82,7 @@ pub struct FileReader {
 
 impl FileReader {
     /// Opens a file for lazy line-by-line reading.
-    /// Automatically detects and handles gzip compression.
+    /// Automatically detects (by magic bytes) and decompresses gzip, bzip2 and zstd.
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
 
@@ -70,6 +92,10 @@ impl FileReader {
         } else if is_bz2_file(path).await? {
             let file = std::fs::File::open(path).context("Failed to open bzip2 file")?;
             LineReader::Bz2(BufReader::new(MultiBzDecoder::new(file)))
+        } else if is_zstd_file(path).await? {
+            let file = std::fs::File::open(path).context("Failed to open zstd file")?;
+            let decoder = ZstdDecoder::new(file).context("Failed to initialise zstd decoder")?;
+            LineReader::Zstd(BufReader::new(decoder))
         } else {
             let file = std::fs::File::open(path).context("Failed to open plain text file")?;
             LineReader::Plain(BufReader::new(file))
@@ -89,6 +115,7 @@ impl FileReader {
             LineReader::Plain(r) => r.read_until(b'\n', buf),
             LineReader::Gzip(r) => r.read_until(b'\n', buf),
             LineReader::Bz2(r) => r.read_until(b'\n', buf),
+            LineReader::Zstd(r) => r.read_until(b'\n', buf),
         }
     }
 
@@ -514,5 +541,183 @@ mod tests {
         }
         assert!(reader.next_line().is_none());
         assert_eq!(reader.lines_read(), 4);
+    }
+
+    /// Builds a zstd frame holding `lines` (one per line).
+    fn zstd_frame(lines: &[String]) -> Vec<u8> {
+        let mut text = Vec::new();
+        for l in lines {
+            writeln!(text, "{l}").unwrap();
+        }
+        zstd::stream::encode_all(&text[..], 3).unwrap()
+    }
+
+    /// Drains a reader into a Vec, failing the test on any read error.
+    fn drain(reader: &mut FileReader) -> Vec<Vec<u8>> {
+        let mut out = Vec::new();
+        while let Some(line) = reader.next_line() {
+            out.push(line.unwrap());
+        }
+        out
+    }
+
+    fn sample_records(n: usize) -> Vec<String> {
+        (0..n)
+            .map(|i| {
+                format!("{{\"DATA_SOURCE\":\"T\",\"RECORD_ID\":\"{i}\",\"pad\":\"{i:0>96}\"}}")
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn test_read_zstd_file() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file
+            .write_all(&zstd_frame(&[
+                "line1".into(),
+                "line2".into(),
+                "line3".into(),
+            ]))
+            .unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line1");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line2");
+        assert_eq!(reader.next_line().unwrap().unwrap(), b"line3");
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_zstd_matches_plain_next_line_and_skip() {
+        // Large enough to span many decoder buffer refills (~1.4 MB decoded).
+        let records = sample_records(10_000);
+        let mut plain = NamedTempFile::new().unwrap();
+        for r in &records {
+            writeln!(plain, "{r}").unwrap();
+        }
+        plain.flush().unwrap();
+        let mut zst = NamedTempFile::with_suffix(".jsonl.zst").unwrap();
+        zst.write_all(&zstd_frame(&records)).unwrap();
+        zst.flush().unwrap();
+
+        // next_line path
+        let want = drain(&mut FileReader::open(plain.path()).await.unwrap());
+        let got = drain(&mut FileReader::open(zst.path()).await.unwrap());
+        assert_eq!(want.len(), 10_000);
+        assert_eq!(got, want);
+
+        // skip path (resume): skip then drain must equal the plain tail
+        let mut p = FileReader::open(plain.path()).await.unwrap();
+        let mut z = FileReader::open(zst.path()).await.unwrap();
+        assert_eq!(p.skip(7_321).unwrap(), 7_321);
+        assert_eq!(z.skip(7_321).unwrap(), 7_321);
+        assert_eq!(drain(&mut z), drain(&mut p));
+        assert_eq!(z.lines_read(), 10_000 - 7_321);
+
+        // skip past EOF reports the real count
+        let mut z = FileReader::open(zst.path()).await.unwrap();
+        assert_eq!(z.skip(20_000).unwrap(), 10_000);
+        assert!(z.next_line().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_read_zstd_multi_frame() {
+        // Concatenated frames (cat a.zst b.zst, pzstd) must ALL be read.
+        let a: Vec<String> = vec!["a1".into(), "a2".into()];
+        let b: Vec<String> = vec!["b1".into(), "b2".into()];
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(&zstd_frame(&a)).unwrap();
+        temp_file.write_all(&zstd_frame(&b)).unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        for want in ["a1", "a2", "b1", "b2"] {
+            assert_eq!(reader.next_line().unwrap().unwrap(), want.as_bytes());
+        }
+        assert!(reader.next_line().is_none());
+        assert_eq!(reader.lines_read(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_zstd_record_split_across_frames() {
+        // Frame boundaries need not align to line boundaries.
+        let mut full = Vec::new();
+        full.extend_from_slice(&zstd::stream::encode_all(&b"rec1\nre"[..], 3).unwrap());
+        full.extend_from_slice(&zstd::stream::encode_all(&b"c2\nrec3\n"[..], 3).unwrap());
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(&full).unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        assert_eq!(
+            drain(&mut reader),
+            vec![b"rec1".to_vec(), b"rec2".to_vec(), b"rec3".to_vec()]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_zstd_with_skippable_frame_prefix() {
+        let mut full = Vec::new();
+        full.extend_from_slice(&[0x5b, 0x2a, 0x4d, 0x18]); // skippable frame magic 0x184D2A5B
+        full.extend_from_slice(&4u32.to_le_bytes());
+        full.extend_from_slice(b"meta");
+        full.extend_from_slice(&zstd_frame(&["x1".into(), "x2".into()]));
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(&full).unwrap();
+        temp_file.flush().unwrap();
+
+        assert!(is_zstd_file(temp_file.path()).await.unwrap());
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        assert_eq!(drain(&mut reader), vec![b"x1".to_vec(), b"x2".to_vec()]);
+    }
+
+    #[tokio::test]
+    async fn test_is_zstd_file_detection() {
+        let mut plain_file = NamedTempFile::new().unwrap();
+        writeln!(plain_file, "plain text").unwrap();
+        plain_file.flush().unwrap();
+        assert!(!is_zstd_file(plain_file.path()).await.unwrap());
+
+        let mut short_file = NamedTempFile::new().unwrap();
+        short_file.write_all(&ZSTD_MAGIC[..3]).unwrap();
+        short_file.flush().unwrap();
+        assert!(!is_zstd_file(short_file.path()).await.unwrap());
+
+        let mut zst_file = NamedTempFile::new().unwrap();
+        zst_file
+            .write_all(&zstd_frame(&["compressed".into()]))
+            .unwrap();
+        zst_file.flush().unwrap();
+        assert!(is_zstd_file(zst_file.path()).await.unwrap());
+        assert!(!is_gzip_file(zst_file.path()).await.unwrap());
+        assert!(!is_bz2_file(zst_file.path()).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_truncated_zstd_is_an_error() {
+        let records = sample_records(5_000);
+        let compressed = zstd_frame(&records);
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file
+            .write_all(&compressed[..compressed.len() / 2])
+            .unwrap();
+        temp_file.flush().unwrap();
+
+        let mut reader = FileReader::open(temp_file.path()).await.unwrap();
+        let mut ok = 0u64;
+        let err = loop {
+            match reader.next_line() {
+                Some(Ok(_)) => ok += 1,
+                Some(Err(e)) => break e,
+                None => panic!("truncated zstd reached a clean EOF after {ok} records"),
+            }
+        };
+        assert!(ok > 0 && ok < 5000, "read {ok} records before the error");
+        assert!(
+            format!("{err:#}").contains(&format!("record {}", ok + 1)),
+            "error must name the failing record: {err:#}"
+        );
     }
 }
