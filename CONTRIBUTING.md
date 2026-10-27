@@ -139,7 +139,7 @@ sz_rabbit_publisher/
 │   ├── main.rs         # CLI entry point
 │   ├── lib.rs          # Library exports
 │   ├── publisher.rs    # Core publisher logic
-│   ├── file_reader.rs  # File reading with gzip support
+│   ├── file_reader.rs  # File reading with gzip/bzip2/zstd support
 │   └── stats.rs        # Statistics tracking
 ├── tests/
 │   └── integration_test.rs  # Integration tests

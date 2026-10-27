@@ -25,7 +25,8 @@ RUN cargo build --release
 # lacks -> "GLIBC_2.38 not found" at startup. The sibling Senzing ports hit exactly this
 # and standardized on cc-debian13. It ships CA certificates (/etc/ssl/certs/ca-certificates.crt,
 # needed by lapin's rustls TLS) and a built-in nonroot user (uid 65532); :nonroot runs as it.
-# Decompression is pure-Rust (lbzip2 + flate2), so no system bzip2/zlib libs are needed.
+# Decompression needs no system libs at runtime: bzip2/flate2 are pure Rust and zstd statically
+# links its bundled libzstd (built with the builder's C toolchain).
 FROM gcr.io/distroless/cc-debian13:nonroot
 
 # Copy binary from builder

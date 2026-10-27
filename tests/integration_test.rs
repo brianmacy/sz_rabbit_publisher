@@ -33,6 +33,23 @@ fn create_test_gzip_file(lines: &[&str]) -> Result<NamedTempFile> {
     Ok(temp_file)
 }
 
+/// Helper to create a zstd-compressed JSONL file made of two concatenated frames
+/// (multi-frame is what `cat a.zst b.zst` / `pzstd` produce)
+fn create_test_zstd_file(lines: &[&str]) -> Result<NamedTempFile> {
+    let mut temp_file = NamedTempFile::new()?;
+    let (first, second) = lines.split_at(lines.len() / 2);
+
+    for half in [first, second] {
+        let mut text = Vec::new();
+        for line in half {
+            writeln!(text, "{}", line)?;
+        }
+        temp_file.write_all(&zstd::stream::encode_all(&text[..], 3)?)?;
+    }
+    temp_file.flush()?;
+    Ok(temp_file)
+}
+
 /// Get RabbitMQ URL from environment or use default
 fn get_rabbitmq_url() -> String {
     std::env::var("TEST_RABBITMQ_URL")
@@ -218,6 +235,66 @@ async fn test_publish_gzip_file() -> Result<()> {
     assert_eq!(stats.total_records, 3);
     assert_eq!(stats.acked, 3);
     assert_eq!(stats.nacked, 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_publish_zstd_file() -> Result<()> {
+    require_broker!();
+
+    let amqp_url = get_rabbitmq_url();
+
+    setup_rabbitmq(
+        &amqp_url,
+        "test-exchange-zst",
+        "test-queue-zst",
+        "test.key.zst",
+    )
+    .await?;
+
+    let test_data = vec![
+        r#"{"id": 1, "name": "Alice"}"#,
+        r#"{"id": 2, "name": "Bob"}"#,
+        r#"{"id": 3, "name": "Charlie"}"#,
+        r#"{"id": 4, "name": "Dana"}"#,
+    ];
+
+    let temp_file = create_test_zstd_file(&test_data)?;
+
+    let config = PublisherConfig {
+        amqp_url: amqp_url.clone(),
+        exchange: "test-exchange-zst".to_string(),
+        queue: "test-queue-zst".to_string(),
+        routing_key: "test.key.zst".to_string(),
+        max_pending: 100,
+        retry_delay: Duration::from_secs(1),
+        report_interval: 1,
+        skip_lines: 0,
+        persistent: true,
+    };
+
+    let publisher = RabbitMQPublisher::new(config);
+
+    let stats = publisher
+        .publish_file(temp_file.path().to_str().unwrap())
+        .await?;
+
+    assert_eq!(stats.total_records, 4);
+    assert_eq!(stats.acked, 4);
+    assert_eq!(stats.nacked, 0);
+
+    // The broker must hold the DECOMPRESSED records, byte-for-byte and in order.
+    let connection = Connection::connect(&amqp_url, ConnectionProperties::default()).await?;
+    let channel = connection.create_channel().await?;
+    for want in &test_data {
+        let got = channel
+            .basic_get("test-queue-zst".into(), BasicGetOptions { no_ack: true })
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("queue empty before all records were read back"))?;
+        assert_eq!(got.delivery.data, want.as_bytes());
+    }
+    connection.close(0, "done".into()).await.ok();
 
     Ok(())
 }
